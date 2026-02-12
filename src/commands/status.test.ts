@@ -62,3 +62,22 @@ test("status command prints workflow status", async () => {
   // If we got here without throwing, test passes
   expect(true).toBe(true);
 });
+
+test("status command outputs JSON format", async () => {
+  const capturedOutput: string[] = [];
+  const originalLog = console.log;
+  console.log = (msg: string) => capturedOutput.push(msg);
+
+  await status({ json: true });
+
+  console.log = originalLog;
+
+  // Should output valid JSON
+  const output = capturedOutput.join('\n');
+  expect(() => JSON.parse(output)).not.toThrow();
+
+  const parsed = JSON.parse(output);
+  expect(parsed).toHaveProperty('status');
+  expect(parsed).toHaveProperty('heartbeatOk');
+  expect(parsed).toHaveProperty('supervisorRunning');
+});
