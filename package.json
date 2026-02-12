@@ -1,12 +1,77 @@
 {
   "name": "takopi-smithers",
+  "version": "1.0.0",
+  "description": "Run long-lived Smithers workflows controlled by Takopi via Telegram",
   "module": "index.ts",
   "type": "module",
-  "private": true,
+  "bin": {
+    "takopi-smithers": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "examples",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18",
+    "bun": ">=1.1.0"
+  },
+  "scripts": {
+    "build": "bun build.ts",
+    "test": "bun test src",
+    "test:e2e": "bun test tests/e2e",
+    "test:all": "bun test src && bun test tests/e2e",
+    "test:integration": "RUN_INTEGRATION=1 bun test src/integration.test.ts",
+    "test:e2e:full": "bun test tests/e2e/full-workflow.e2e.test.ts",
+    "test:manual": "./scripts/test-full-workflow.sh",
+    "test:ci": "bun run typecheck && bun run lint && bun test src && bun test tests/e2e && bun run test:integration",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "dev": "bun --watch src/cli.ts",
+    "prepublishOnly": "bun run build && bun run test:all",
+    "prepack": "bun run build",
+    "test:package": "./scripts/test-package.sh"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/williamcory/takopi-smithers.git"
+  },
+  "keywords": [
+    "smithers",
+    "takopi",
+    "telegram",
+    "workflow",
+    "orchestration",
+    "bun"
+  ],
+  "license": "MIT",
   "devDependencies": {
-    "@types/bun": "latest"
+    "@eslint/js": "^10.0.1",
+    "@types/bun": "latest",
+    "@typescript-eslint/eslint-plugin": "^8.55.0",
+    "@typescript-eslint/parser": "^8.55.0",
+    "eslint": "^10.0.0",
+    "eslint-config-prettier": "^10.1.8"
   },
   "peerDependencies": {
     "typescript": "^5"
+  },
+  "dependencies": {
+    "@babel/runtime": "^7.28.6",
+    "@iarna/toml": "^2.2.5",
+    "drizzle-orm": "^0.45.1",
+    "smithers": "^0.5.4",
+    "smithers-orchestrator": "^0.5.0",
+    "zod": "^4.3.6"
   }
 }
