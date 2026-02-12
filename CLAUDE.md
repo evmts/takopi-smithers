@@ -109,3 +109,12 @@ bun --hot ./index.ts
 ```
 
 For more information, read the Bun API docs in `node_modules/bun-types/docs/**.mdx`.
+
+
+# takopi-smithers configuration
+
+@TAKOPI_SMITHERS.md
+
+Additional notes:
+- Workflow file: .smithers/workflow.tsx
+- Supervisor config: .takopi-smithers/config.toml
