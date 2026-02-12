@@ -248,9 +248,93 @@ See `docs/troubleshooting.md` for more.
 
 See `docs/codespaces.md` for a prebuilt devcontainer setup.
 
-## Example Workflows
+## Workflow Templates
 
-See `examples/workflows/` for sample Smithers workflow templates.
+When you run `takopi-smithers init`, you can choose from several workflow templates:
+
+1. **Default** (recommended) - Plan/Implement/Review/Fix loop
+   - General-purpose workflow for spec-driven development
+   - Iterative loop with quality gates
+   - Best for: Most projects, following a spec document
+
+2. **API Builder** - Build REST API endpoints with tests
+   - Sequential pipeline: research → scaffold → implement → validate
+   - Idempotent task design (safe to restart)
+   - Best for: Building REST APIs, microservices
+
+3. **Refactoring** - Systematic codebase refactoring
+   - Progressive refactoring with rollback support
+   - Module-by-module approach with validation gates
+   - Best for: Large-scale refactoring, technical debt reduction
+
+4. **Feature Implementation** - Multi-step feature with validation
+   - Gated progression (must pass tests before next phase)
+   - Separates core logic, UI, integration, and docs
+   - Best for: New features requiring comprehensive testing
+
+5. **Minimal** - Basic scaffold to build from scratch
+   - Clean slate with just supervisor state and one task
+   - Best for: Custom workflows, learning Smithers
+
+To specify a template:
+
+```bash
+# Interactive prompt (default)
+bunx takopi-smithers init
+
+# Non-interactive with specific template
+bunx takopi-smithers init --template api-builder
+bunx takopi-smithers init --template refactor
+bunx takopi-smithers init --template feature
+bunx takopi-smithers init --template minimal
+```
+
+All templates include:
+- ✅ Supervisor state management (status, summary, heartbeat)
+- ✅ Error handling and graceful degradation
+- ✅ Resumability across restarts
+- ✅ Production-ready patterns
+
+See `examples/workflows/` for the full source code of each template.
+
+## Authoring Custom Workflows
+
+See `docs/workflow-authoring.md` for a complete guide to writing production-ready workflows, including:
+
+- Schema design best practices
+- State key contract requirements
+- Error handling patterns
+- Resumability patterns
+- Testing workflows locally
+- Common pitfalls and solutions
+
+Quick example:
+
+```tsx
+import { smithers, Workflow, Task, ClaudeCodeAgent } from "smithers-orchestrator";
+import { drizzle } from "drizzle-orm/bun-sqlite";
+
+// 1. Define schema
+const schema = { /* your tables */ };
+const db = drizzle(".smithers/workflow.db", { schema });
+
+// 2. Update supervisor state
+function updateState(key: string, value: string) { /* ... */ }
+updateState("supervisor.status", "running");
+updateState("supervisor.heartbeat", new Date().toISOString());
+
+// 3. Create agents
+const agent = new ClaudeCodeAgent({ model: "sonnet", env: { ANTHROPIC_API_KEY: "" } });
+
+// 4. Define workflow
+export default smithers(db, (ctx) => (
+  <Workflow name="my-workflow">
+    <Task id="my-task" output={schema.output} agent={agent}>
+      Your prompt here
+    </Task>
+  </Workflow>
+));
+```
 
 ## Testing
 
