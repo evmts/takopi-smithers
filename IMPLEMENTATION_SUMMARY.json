@@ -1,0 +1,21 @@
+{
+  "summary": "Implemented Supervisor Core (Milestone 2) with start/stop/status/restart commands. The supervisor manages Takopi and Smithers subprocesses, monitors health via SQLite heartbeat, sends periodic Telegram status updates, and implements auto-restart with exponential backoff. All tests passing (21 pass, 1 skip).",
+  "filesChanged": [
+    "src/lib/config.ts",
+    "src/lib/logger.ts",
+    "src/lib/telegram.ts",
+    "src/lib/db.ts",
+    "src/lib/supervisor.ts",
+    "src/commands/start.ts",
+    "src/commands/stop.ts",
+    "src/commands/status.ts",
+    "src/commands/restart.ts",
+    "src/lib/config.test.ts",
+    "src/lib/db.test.ts",
+    "src/commands/status.test.ts",
+    "src/integration.test.ts",
+    "src/cli.ts",
+    "src/commands/help.ts"
+  ],
+  "testOutput": "21 pass, 1 skip, 0 fail, 52 expect() calls across 22 tests in 7 files"
+}
