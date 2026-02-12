@@ -60,6 +60,6 @@ jobs:
             bunx takopi-smithers@latest
             ```
 
-            See [CHANGELOG.md](https://github.com/williamcory/takopi-smithers/blob/main/CHANGELOG.md) for details.
+            See [CHANGELOG.md](https://github.com/evmts/takopi-smithers/blob/main/CHANGELOG.md) for details.
           draft: false
           prerelease: false

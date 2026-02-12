@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.0] - 2024-02-12
+## [1.0.0] - 2025-02-12
 
 ### Added
 - Initial release of takopi-smithers
@@ -43,5 +43,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ESLint configuration
 - GitHub Actions for CI and npm publishing
 
-[Unreleased]: https://github.com/williamcory/takopi-smithers/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/williamcory/takopi-smithers/releases/tag/v1.0.0
+[Unreleased]: https://github.com/evmts/takopi-smithers/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/evmts/takopi-smithers/releases/tag/v1.0.0

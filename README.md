@@ -18,6 +18,21 @@ Includes a supervisor that posts periodic status updates, restarts on failure, a
 - "I want an agent workflow that runs for hours/days and I can poke from my phone"
 - Proof-of-concept friendly
 
+## Quick Start
+
+```bash
+# Initialize in your project
+bunx takopi-smithers@latest init
+
+# Configure Telegram credentials in .takopi-smithers/config.toml
+# Then start the supervisor
+bunx takopi-smithers start
+```
+
+**Requirements:** Bun, Python 3.14+, Takopi, and at least one AI agent CLI (Claude Code, Codex, OpenCode, or Pi)
+
+See [Full Setup](#full-setup-step-by-step) below for detailed installation instructions.
+
 ## Full Setup (step by step)
 
 ### Step 1: Install prerequisites
@@ -69,8 +84,10 @@ This creates `~/.takopi/takopi.toml` with your Telegram credentials. The onboard
 
 ```bash
 cd your-repo
-bunx takopi-smithers init
+bunx takopi-smithers@latest init
 ```
+
+> **Note:** Using `@latest` ensures you get the most recent version from npm. After the first run, you can omit `@latest`.
 
 This creates:
 - `.smithers/workflow.tsx` -- the Smithers workflow (plan/implement/review/fix loop)
