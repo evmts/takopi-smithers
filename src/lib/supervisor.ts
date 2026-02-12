@@ -1,4 +1,5 @@
 import type { Subprocess } from "bun";
+import Database from "bun:sqlite";
 import type { Config } from "./config";
 import { log } from "./logger";
 import { sendTelegramMessage, formatStatusMessage } from "./telegram";
@@ -29,6 +30,24 @@ export class Supervisor {
   public getUptime(): number {
     if (this.startTime === 0) return 0;
     return Math.floor((Date.now() - this.startTime) / 1000);
+  }
+
+  private isPaused(): boolean {
+    try {
+      if (!fs.existsSync(this.config.workflow.db)) return false;
+
+      const db = new Database(this.config.workflow.db, { readonly: true });
+      try {
+        const row = db
+          .query<{ value: string }, []>("SELECT value FROM state WHERE key = 'supervisor.paused'")
+          .get();
+        return row?.value === "true";
+      } finally {
+        db.close();
+      }
+    } catch {
+      return false;
+    }
   }
 
   async start(): Promise<void> {
@@ -90,6 +109,12 @@ export class Supervisor {
   }
 
   private async startSmithers(): Promise<void> {
+    // Check if workflow is paused before starting
+    if (this.isPaused()) {
+      await log("Workflow is paused. Skipping Smithers startup.");
+      return;
+    }
+
     await log("Starting Smithers workflow...");
 
     const args = ["bunx", "smithers", "run", this.config.workflow.script];
