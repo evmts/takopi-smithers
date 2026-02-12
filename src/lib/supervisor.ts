@@ -63,9 +63,10 @@ export class Supervisor {
     await log("Starting Takopi...");
 
     const takopiBin = await this.resolveTakopiBin();
-    await log(`Using takopi binary: ${takopiBin}`);
+    const engine = this.config.takopi?.engine ?? 'codex';
+    await log(`Using takopi binary: ${takopiBin} (engine: ${engine})`);
 
-    this.takopiProc = Bun.spawn([takopiBin], {
+    this.takopiProc = Bun.spawn([takopiBin, engine], {
       cwd: process.cwd(),
       stdout: "pipe",
       stderr: "inherit",

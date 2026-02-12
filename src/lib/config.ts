@@ -9,7 +9,7 @@ const ConfigSchema = z.object({
   workflow: z.object({
     script: z.string(),
     db: z.string(),
-    input: z.record(z.unknown()).optional(),
+    input: z.any().optional(),
   }),
   updates: z.object({
     enabled: z.boolean(),
@@ -22,6 +22,9 @@ const ConfigSchema = z.object({
     restart_backoff_seconds: z.array(z.number()),
     max_restart_attempts: z.number(),
   }),
+  takopi: z.object({
+    engine: z.enum(['claude', 'codex', 'opencode', 'pi']).default('codex'),
+  }).optional(),
   telegram: z.object({
     bot_token: z.string(),
     chat_id: z.number(),
@@ -65,6 +68,9 @@ export interface Config {
     hang_threshold_seconds: number;
     restart_backoff_seconds: number[];
     max_restart_attempts: number;
+  };
+  takopi?: {
+    engine: 'claude' | 'codex' | 'opencode' | 'pi';
   };
   telegram: {
     bot_token: string;

@@ -9,6 +9,11 @@ import { sqliteTable, text, integer, primaryKey } from "drizzle-orm/sqlite-core"
 // Schema — one table per phase so smithers controls identity, not the agent
 // ---------------------------------------------------------------------------
 
+const inputTable = sqliteTable("input", {
+  runId: text("run_id").primaryKey(),
+  specPath: text("spec_path").notNull(),
+});
+
 const planTable = sqliteTable(
   "plan",
   {
@@ -74,6 +79,7 @@ const outputTable = sqliteTable(
 );
 
 export const schema = {
+  input: inputTable,
   output: outputTable,
   plan: planTable,
   implement: implementTable,
@@ -85,6 +91,10 @@ export const db = drizzle(".smithers/workflow.db", { schema });
 
 // Create tables
 (db as any).$client.exec(` + "`" + `
+  CREATE TABLE IF NOT EXISTS input (
+    run_id TEXT PRIMARY KEY,
+    spec_path TEXT NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS plan (
     run_id TEXT NOT NULL, node_id TEXT NOT NULL, iteration INTEGER NOT NULL DEFAULT 0,
     task_name TEXT NOT NULL, research TEXT NOT NULL, implementation_prompt TEXT NOT NULL,

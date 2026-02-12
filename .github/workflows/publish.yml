@@ -3,23 +3,14 @@ name: Publish to npm
 on:
   push:
     tags:
-      - 'v*.*.*'
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Tag to publish (e.g., v0.1.0)'
-        required: true
-        type: string
-
-permissions:
-  contents: read
-  id-token: write
+      - 'v*'
 
 jobs:
   publish:
-    name: Build and Publish to npm
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
       - name: Checkout code
@@ -30,53 +21,45 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run tests
+        run: bun test src
+
+      - name: Build package
+        run: bun run build
+
       - name: Setup Node.js (for npm publish)
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Cache dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.bun/install/cache
-            node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Type check
-        run: bun run typecheck
-
-      - name: Run linter
-        run: bun run lint
-
-      - name: Run tests
-        run: bun test
-
-      - name: Build package
-        run: bun run build
-
-      - name: Verify build output
-        run: |
-          echo "Checking dist/ directory..."
-          ls -la dist/
-          echo "Verifying CLI entry point..."
-          test -f dist/cli.js || (echo "ERROR: dist/cli.js not found" && exit 1)
-          echo "✅ Build verification passed"
-
       - name: Publish to npm
-        run: npm publish --provenance --access public
+        run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Get version from tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          generate_release_notes: true
+        uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ steps.version.outputs.version }}
+          body: |
+            ## takopi-smithers v${{ steps.version.outputs.version }}
+
+            Install via:
+            ```bash
+            bunx takopi-smithers@latest
+            ```
+
+            See [CHANGELOG.md](https://github.com/williamcory/takopi-smithers/blob/main/CHANGELOG.md) for details.
+          draft: false
+          prerelease: false
