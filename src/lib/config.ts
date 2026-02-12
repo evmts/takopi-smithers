@@ -127,8 +127,27 @@ export async function loadConfig(path?: string): Promise<Config> {
       }
     }
 
-    // Fall back to main config
-    path = path || '.takopi-smithers/config.toml';
+    // Fall back: env var > local > home dir
+    if (!path) {
+      const envPath = process.env.TAKOPI_SMITHERS_CONFIG;
+      if (envPath) {
+        // If env var is explicitly set, it must exist
+        if (await Bun.file(envPath).exists()) {
+          path = envPath;
+        } else {
+          throw new Error(`Config file not found at TAKOPI_SMITHERS_CONFIG: ${envPath}`);
+        }
+      } else if (await Bun.file('.takopi-smithers/config.toml').exists()) {
+        path = '.takopi-smithers/config.toml';
+      } else {
+        const homePath = `${process.env.HOME}/.takopi-smithers/config.toml`;
+        if (await Bun.file(homePath).exists()) {
+          path = homePath;
+        } else {
+          path = '.takopi-smithers/config.toml';
+        }
+      }
+    }
   }
 
   const content = await Bun.file(path).text();
