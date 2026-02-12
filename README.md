@@ -10,6 +10,8 @@ Includes a supervisor that posts periodic status updates, restarts on failure, a
 - Takopi: https://takopi.dev
 - Smithers: https://smithers.sh
 
+<img width="1024" height="1536" alt="image" src="https://github.com/user-attachments/assets/c7d20c08-9bff-449a-9eb7-3875703d3539" />
+
 ## Who this is for
 
 - Solo devs and small teams
