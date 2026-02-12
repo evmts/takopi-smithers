@@ -1,7 +1,7 @@
 // Workflow template for `takopi-smithers init`
 // This is the multi-phase plan→implement→review→fix pattern that matches the real workflow.
 
-export const WORKFLOW_TEMPLATE = String.raw`import { smithers, Workflow, Task, Ralph, ClaudeCodeAgent } from "smithers";
+export const WORKFLOW_TEMPLATE = String.raw`import { smithers, Workflow, Task, Ralph, ClaudeCodeAgent } from "smithers-orchestrator";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import { sqliteTable, text, integer, primaryKey } from "drizzle-orm/sqlite-core";
 
@@ -151,7 +151,7 @@ const plannerAgent = new ClaudeCodeAgent({
   model: "sonnet",
   env: cliEnv,
   systemPrompt: "You are a senior software architect. Read the spec, examine the codebase, " +
-    "and pick the NEXT highest-priority task. Produce a detailed implementation prompt.\n\n" +
+    "and pick the NEXT highest-priority task. Produce a detailed implementation prompt. " +
     "Respond with ONLY a JSON object: " +
     '{ "taskName": "string", "research": "string", "implementationPrompt": "string", ' +
     '"filesToCreate": ["paths"], "filesToModify": ["paths"] }',
@@ -161,7 +161,7 @@ const implementAgent = new ClaudeCodeAgent({
   model: "sonnet",
   env: cliEnv,
   systemPrompt: "You are a senior TypeScript engineer. Implement the task described below. " +
-    "After writing code, ALWAYS run tests to verify.\n\n" +
+    "After writing code, ALWAYS run tests to verify. " +
     "Respond with ONLY a JSON object: " +
     '{ "summary": "string", "filesChanged": ["paths"], "testOutput": "string" }',
 });
@@ -170,7 +170,7 @@ const reviewAgent = new ClaudeCodeAgent({
   model: "sonnet",
   env: cliEnv,
   systemPrompt: "You are a senior code reviewer. Run type checker and tests. " +
-    "Set lgtm=true ONLY if everything is correct.\n\n" +
+    "Set lgtm=true ONLY if everything is correct. " +
     "Respond with ONLY a JSON object: " +
     '{ "lgtm": true/false, "review": "string", "issues": ["specific issues"] }',
 });
@@ -179,7 +179,7 @@ const fixAgent = new ClaudeCodeAgent({
   model: "sonnet",
   env: cliEnv,
   systemPrompt: "You are a senior TypeScript engineer fixing code review issues. " +
-    "After making changes, run tests and type checker.\n\n" +
+    "After making changes, run tests and type checker. " +
     "Respond with ONLY a JSON object: " +
     '{ "summary": "string", "filesChanged": ["paths"] }',
 });
@@ -231,32 +231,19 @@ export default smithers(db, (ctx) => {
     <Workflow name="my-workflow">
       <Ralph until={false} maxIterations={200} onMaxReached="return-last">
         <Task id="plan" output={schema.plan} agent={plannerAgent} skipIf={phase !== "plan"} retries={2}>
-          {"Read the project spec at " + (ctx.input.specPath ?? "SPEC.md") +
-           " and examine the codebase.\n\nCompleted tasks: " + (completedTasks || "None yet") +
-           "\n\nPick the NEXT task. Research what's needed. Write a detailed implementation prompt."}
+          {"Read the project spec at " + (ctx.input.specPath ?? "SPEC.md") + " and examine the codebase. Completed tasks: " + (completedTasks || "None yet") + ". Pick the NEXT task. Research what's needed. Write a detailed implementation prompt."}
         </Task>
 
         <Task id="implement" output={schema.implement} agent={implementAgent} skipIf={phase !== "implement"} retries={2}>
-          {"TASK: " + (latestPlan?.taskName ?? "unknown") + "\n\n" +
-           (latestPlan?.implementationPrompt ?? "No implementation prompt.") +
-           "\n\nFiles to create: " + JSON.stringify(latestPlan?.filesToCreate ?? []) +
-           "\nFiles to modify: " + JSON.stringify(latestPlan?.filesToModify ?? []) +
-           "\n\nAfter implementing, run tests and report results."}
+          {"TASK: " + (latestPlan?.taskName ?? "unknown") + " -- " + (latestPlan?.implementationPrompt ?? "No implementation prompt.") + " Files to create: " + JSON.stringify(latestPlan?.filesToCreate ?? []) + " Files to modify: " + JSON.stringify(latestPlan?.filesToModify ?? []) + " After implementing, run tests and report results."}
         </Task>
 
         <Task id="review" output={schema.review} agent={reviewAgent} skipIf={phase !== "review"} retries={2}>
-          {"Review: " + (latestPlan?.taskName ?? "unknown") +
-           "\nSummary: " + (latestImpl?.summary ?? "No summary") +
-           "\nFiles: " + JSON.stringify(latestImpl?.filesChanged ?? []) +
-           "\nTests: " + (latestImpl?.testOutput ?? "No test output") +
-           "\n\nRead ALL changed files. Run type checker and tests."}
+          {"Review: " + (latestPlan?.taskName ?? "unknown") + " | Summary: " + (latestImpl?.summary ?? "No summary") + " | Files: " + JSON.stringify(latestImpl?.filesChanged ?? []) + " | Tests: " + (latestImpl?.testOutput ?? "No test output") + " -- Read ALL changed files. Run type checker and tests."}
         </Task>
 
         <Task id="fix" output={schema.fix} agent={fixAgent} skipIf={phase !== "fix"} retries={2}>
-          {"Fix review issues for: " + (latestPlan?.taskName ?? "unknown") +
-           "\n\nIssues:\n" +
-           (latestReview?.issues?.map((issue: string, i: number) => (i + 1) + ". " + issue).join("\n") ?? "None") +
-           "\n\nFix each issue. Run tests after."}
+          {"Fix review issues for: " + (latestPlan?.taskName ?? "unknown") + " Issues: " + (latestReview?.issues?.map((issue: string, i: number) => (i + 1) + ". " + issue).join(", ") ?? "None") + " Fix each issue. Run tests after."}
         </Task>
       </Ralph>
 

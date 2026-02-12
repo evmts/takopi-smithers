@@ -1,4 +1,4 @@
-import { smithers, Workflow, Task, Ralph, ClaudeCodeAgent } from "smithers";
+import { smithers, Workflow, Task, Ralph, ClaudeCodeAgent } from "smithers-orchestrator";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import {
   sqliteTable,
