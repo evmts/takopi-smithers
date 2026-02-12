@@ -1,0 +1,30 @@
+# Source files (we publish dist/)
+src/
+*.test.ts
+*.spec.ts
+
+# Config files
+tsconfig.json
+tsconfig.build.json
+.eslintrc.json
+.prettierrc
+
+# Development
+.github/
+.devcontainer/
+.vscode/
+.takopi-smithers/
+.smithers/
+
+# Documentation (except README)
+SPEC.md
+CLAUDE.md
+AGENTS.md
+TAKOPI_SMITHERS.md
+docs/
+
+# Test artifacts
+coverage/
+*.db
+*.db-journal
+*.log
