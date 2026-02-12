@@ -72,8 +72,13 @@ export class Supervisor {
   private async startSmithers(): Promise<void> {
     await log("Starting Smithers workflow...");
 
+    const args = ["bunx", "smithers", "run", this.config.workflow.script];
+    if (this.config.workflow.input) {
+      args.push("--input", JSON.stringify(this.config.workflow.input));
+    }
+
     this.smithersProc = Bun.spawn(
-      ["bunx", "smithers", "run", this.config.workflow.script],
+      args,
       {
         cwd: process.cwd(),
         stdout: "pipe",

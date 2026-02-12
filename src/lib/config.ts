@@ -9,6 +9,7 @@ const ConfigSchema = z.object({
   workflow: z.object({
     script: z.string(),
     db: z.string(),
+    input: z.record(z.unknown()).optional(),
   }),
   updates: z.object({
     enabled: z.boolean(),
@@ -52,6 +53,7 @@ export interface Config {
   workflow: {
     script: string;
     db: string;
+    input?: Record<string, unknown>;
   };
   updates: {
     enabled: boolean;
