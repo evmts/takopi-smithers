@@ -6,18 +6,19 @@ USAGE:
   takopi-smithers [command] [options]
 
 COMMANDS:
-  init [--worktree <name>]          Scaffold files for this repo (or specific worktree)
-  start [--worktree <name>]         Start supervisor, Takopi, and Smithers
-  status [--worktree <name>]        Show workflow status
-  restart [--worktree <name>]       Restart workflow
-  stop [--worktree <name>]          Stop supervisor and subprocesses
-  logs [--worktree <name>]          View supervisor logs
-  doctor                            Run diagnostics
+  init [--worktree <name>]                    Scaffold files for this repo (or specific worktree)
+  start [--worktree <name>] [--all-worktrees] Start supervisor, Takopi, and Smithers
+  status [--worktree <name>] [--all-worktrees] Show workflow status
+  restart [--worktree <name>] [--all-worktrees] Restart workflow
+  stop [--worktree <name>] [--all-worktrees]  Stop supervisor and subprocesses
+  logs [--worktree <name>]                    View supervisor logs
+  doctor                                      Run diagnostics
 
 OPTIONS:
   --help, -h                        Show this help
   --version, -v                     Show version
   --worktree <name>                 Target specific git worktree/branch
+  --all-worktrees                   Operate on all configured worktrees at once
   --force                           Overwrite existing files (init only)
   --dry-run                         Don't send Telegram messages (start only)
   --keep-takopi                     Don't stop Takopi (stop only)
@@ -51,9 +52,16 @@ EXAMPLES:
   takopi-smithers restart --worktree feature-branch
   takopi-smithers stop --worktree feature-branch
 
+  # Manage multiple worktrees at once
+  takopi-smithers start --all-worktrees      # Start all configured worktrees
+  takopi-smithers status --all-worktrees     # View status table for all worktrees
+  takopi-smithers restart --all-worktrees    # Restart all running supervisors
+  takopi-smithers stop --all-worktrees       # Stop all supervisors
+
 WORKTREE SUPPORT:
   Each git worktree can run an independent workflow with isolated config, DB, and logs.
   Auto-detects worktree when you cd to the directory, or use --worktree flag.
+  Use --all-worktrees to manage all configured worktrees at once.
   See docs/worktrees.md for detailed setup.
 
 DOCUMENTATION:

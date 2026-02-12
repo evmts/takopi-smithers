@@ -6,12 +6,14 @@ import {
   formatHeartbeatAge,
   getWorkflowProgress,
 } from "../lib/db";
-import { getPidFilePath, readPidFile } from "../lib/pid";
+import { getPidFilePath, readPidFile, getAllWorktreePidFiles } from "../lib/pid";
+import { listWorktrees, getWorktreeConfigPath } from "../lib/worktree";
 import * as fs from "node:fs";
 
 interface StatusOptions {
   json?: boolean;
   worktree?: string;
+  allWorktrees?: boolean;
 }
 
 function formatUptime(seconds: number): string {
@@ -69,8 +71,120 @@ function getNextActionSuggestion(
   return null;
 }
 
+/**
+ * Display status for all configured worktrees in a table format
+ */
+async function statusAllWorktrees(json: boolean): Promise<void> {
+  const worktrees = await listWorktrees();
+  const statuses: Array<{
+    name: string;
+    branch: string;
+    status: string;
+    heartbeat: string;
+    summary: string;
+    pid: number | null;
+  }> = [];
+
+  for (const worktree of worktrees) {
+    const configPath = getWorktreeConfigPath(worktree);
+    const configExists = await Bun.file(configPath).exists();
+
+    if (!configExists) {
+      continue; // Skip unconfigured worktrees
+    }
+
+    try {
+      const config = await loadConfig(configPath);
+      const pidPath = getPidFilePath(config);
+      const pid = readPidFile(pidPath);
+
+      // Check if DB exists
+      if (!fs.existsSync(config.workflow.db)) {
+        statuses.push({
+          name: worktree.branch,
+          branch: worktree.branch,
+          status: "not started",
+          heartbeat: "—",
+          summary: "Workflow not started",
+          pid,
+        });
+        continue;
+      }
+
+      const state = queryWorkflowState(config.workflow.db);
+      const heartbeatAge = getHeartbeatAge(config.workflow.db);
+      const heartbeatOk = state.heartbeat
+        ? !isHeartbeatStale(state.heartbeat, config.health.hang_threshold_seconds)
+        : false;
+
+      const heartbeatDisplay = heartbeatAge !== null
+        ? formatHeartbeatAge(heartbeatAge) + (heartbeatOk ? " ✅" : " ❌")
+        : "No heartbeat ❌";
+
+      statuses.push({
+        name: worktree.branch,
+        branch: worktree.branch,
+        status: state.status || "unknown",
+        heartbeat: heartbeatDisplay,
+        summary: state.summary || "No summary available",
+        pid,
+      });
+    } catch (error) {
+      statuses.push({
+        name: worktree.branch,
+        branch: worktree.branch,
+        status: "error",
+        heartbeat: "—",
+        summary: `Failed to read status: ${error}`,
+        pid: null,
+      });
+    }
+  }
+
+  if (statuses.length === 0) {
+    console.log("⚠️  No configured worktrees found. Run 'takopi-smithers init --worktree <name>' first.");
+    return;
+  }
+
+  if (json) {
+    console.log(JSON.stringify(statuses, null, 2));
+  } else {
+    // Display table
+    console.log("\n╔══════════════════════════════════════════════════════════════════════════════╗");
+    console.log("║  takopi-smithers status - All Worktrees");
+    console.log("╚══════════════════════════════════════════════════════════════════════════════╝\n");
+
+    // Table header
+    console.log("┌─────────────────────┬──────────────┬──────────────────┬─────────────────────────────┐");
+    console.log("│ Worktree            │ Status       │ Heartbeat        │ Summary                     │");
+    console.log("├─────────────────────┼──────────────┼──────────────────┼─────────────────────────────┤");
+
+    // Table rows
+    for (const s of statuses) {
+      const name = s.name.padEnd(19).substring(0, 19);
+      const status = s.status.padEnd(12).substring(0, 12);
+      const heartbeat = s.heartbeat.padEnd(16).substring(0, 16);
+      const summary = s.summary.padEnd(27).substring(0, 27);
+
+      console.log(`│ ${name} │ ${status} │ ${heartbeat} │ ${summary} │`);
+    }
+
+    console.log("└─────────────────────┴──────────────┴──────────────────┴─────────────────────────────┘\n");
+
+    // Summary
+    const running = statuses.filter(s => s.pid !== null).length;
+    console.log(`📊 ${statuses.length} configured worktree(s), ${running} supervisor(s) running\n`);
+  }
+}
+
 export async function status(options: StatusOptions = {}): Promise<void> {
   try {
+    // Handle --all-worktrees flag
+    if (options.allWorktrees) {
+      await statusAllWorktrees(options.json || false);
+      return;
+    }
+
     const config = options.worktree
       ? await loadWorktreeConfig(options.worktree)
       : await loadConfig();

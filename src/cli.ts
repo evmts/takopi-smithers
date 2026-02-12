@@ -40,23 +40,27 @@ async function main() {
       await start({
         dryRun: parsed.flags['dry-run'] as boolean,
         worktree: parsed.flags.worktree as string | undefined,
+        allWorktrees: parsed.flags['all-worktrees'] as boolean,
       });
       break;
     case 'status':
       await status({
         json: parsed.flags.json as boolean,
         worktree: parsed.flags.worktree as string | undefined,
+        allWorktrees: parsed.flags['all-worktrees'] as boolean,
       });
       break;
     case 'restart':
       await restart({
         worktree: parsed.flags.worktree as string | undefined,
+        allWorktrees: parsed.flags['all-worktrees'] as boolean,
       });
       break;
     case 'stop':
       await stop({
         keepTakopi: parsed.flags['keep-takopi'] as boolean,
         worktree: parsed.flags.worktree as string | undefined,
+        allWorktrees: parsed.flags['all-worktrees'] as boolean,
       });
       break;
     case 'doctor':

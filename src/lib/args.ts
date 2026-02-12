@@ -28,7 +28,18 @@ const _flagMap: Record<string, string> = {
   '--level': 'level',
   '--json': 'json',
   '--worktree': 'worktree',
+  '--all-worktrees': 'all-worktrees',
 };
+
+/**
+ * Validate that mutually exclusive flags are not used together
+ */
+function validateFlags(flags: Record<string, boolean | string>): void {
+  // Check for --worktree and --all-worktrees being used together
+  if (flags['worktree'] && flags['all-worktrees']) {
+    throw new Error("Cannot use both --worktree and --all-worktrees flags together");
+  }
+}
 
 export function parseArgs(args: string[]): ParsedArgs {
   const flags: Record<string, boolean | string> = {};
@@ -74,6 +85,9 @@ export function parseArgs(args: string[]): ParsedArgs {
       }
     }
   }
+
+  // Validate mutually exclusive flags
+  validateFlags(flags);
 
   return { command, flags, positionals };
 }

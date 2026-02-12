@@ -70,6 +70,64 @@ cd ../myrepo-feature
 takopi-smithers status  # Auto-detects feature-branch
 ```
 
+## Bulk Operations
+
+The `--all-worktrees` flag allows you to operate on all configured worktrees simultaneously:
+
+### Starting All Worktrees
+
+```bash
+takopi-smithers start --all-worktrees
+```
+
+This will:
+1. Scan all git worktrees in the repository
+2. Check which ones have a `.takopi-smithers/worktrees/<branch>/config.toml`
+3. Spawn a separate supervisor process for each configured worktree
+4. Report which worktrees were successfully started
+
+### Viewing All Statuses
+
+```bash
+takopi-smithers status --all-worktrees
+```
+
+Displays a formatted table:
+```
+┌─────────────────────┬──────────────┬──────────────────┬─────────────────────────────┐
+│ Worktree            │ Status       │ Heartbeat        │ Summary                     │
+├─────────────────────┼──────────────┼──────────────────┼─────────────────────────────┤
+│ main                │ running      │ 5 seconds ago ✅ │ Planning next task          │
+│ feature-auth        │ running      │ 12 seconds ago ✅│ Implementing login flow     │
+│ feature-dashboard   │ idle         │ —                │ Workflow not started        │
+└─────────────────────┴──────────────┴──────────────────┴─────────────────────────────┘
+```
+
+### Restarting All Supervisors
+
+```bash
+takopi-smithers restart --all-worktrees
+```
+
+Sends SIGUSR1 signal to all running supervisor processes.
+
+### Stopping All Supervisors
+
+```bash
+takopi-smithers stop --all-worktrees
+```
+
+Gracefully stops all supervisors. Add `--keep-takopi` if you want to keep Takopi processes running.
+
+### Flag Validation
+
+The `--all-worktrees` and `--worktree <name>` flags are mutually exclusive. If you try to use both:
+
+```bash
+takopi-smithers start --worktree main --all-worktrees
+# Error: Cannot use both --worktree and --all-worktrees flags together
+```
+
 ## Troubleshooting
 
 - **"Worktree not found"**: Ensure the worktree exists (`git worktree list`)

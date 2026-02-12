@@ -49,4 +49,22 @@ describe('parseArgs', () => {
     expect(result.command).toBe('stop');
     expect(result.flags['keep-takopi']).toBe(true);
   });
+
+  test('validateFlags throws when --worktree and --all-worktrees are used together', () => {
+    expect(() => {
+      parseArgs(['start', '--worktree', 'main', '--all-worktrees']);
+    }).toThrow('Cannot use both --worktree and --all-worktrees flags together');
+  });
+
+  test('validateFlags allows --worktree alone', () => {
+    expect(() => {
+      parseArgs(['start', '--worktree', 'main']);
+    }).not.toThrow();
+  });
+
+  test('validateFlags allows --all-worktrees alone', () => {
+    expect(() => {
+      parseArgs(['start', '--all-worktrees']);
+    }).not.toThrow();
+  });
 });

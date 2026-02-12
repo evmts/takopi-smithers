@@ -227,6 +227,32 @@ takopi-smithers init --worktree feature
 takopi-smithers start --worktree feature
 ```
 
+### Managing Multiple Worktrees
+
+When you have multiple worktrees configured, you can manage them all at once using the `--all-worktrees` flag:
+
+```bash
+# Start supervisors for all configured worktrees
+takopi-smithers start --all-worktrees
+
+# View status of all worktrees in a table
+takopi-smithers status --all-worktrees
+
+# Restart all running supervisors
+takopi-smithers restart --all-worktrees
+
+# Stop all supervisors
+takopi-smithers stop --all-worktrees
+```
+
+**How it works:**
+- `start --all-worktrees` spawns a separate supervisor process for each worktree that has a config file
+- `status --all-worktrees` shows a formatted table with branch name, status, heartbeat age, and summary
+- `restart --all-worktrees` sends restart signals to all running supervisors
+- `stop --all-worktrees` gracefully stops all supervisors
+
+**Note:** The `--all-worktrees` flag is mutually exclusive with `--worktree <name>` - you can't use both together.
+
 See `docs/worktrees.md` for detailed setup.
 
 ## Troubleshooting
