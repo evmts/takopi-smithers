@@ -5,6 +5,7 @@ import { WORKFLOW_TEMPLATE } from './workflow-template';
 interface InitOptions {
   force?: boolean;
   worktree?: string;
+  template?: 'default' | 'api-builder' | 'refactor' | 'feature' | 'minimal';
 }
 
 export async function init(options: InitOptions = {}): Promise<void> {
@@ -39,7 +40,7 @@ export async function init(options: InitOptions = {}): Promise<void> {
   await createConfigToml(options.force, results);
 
   // Create workflow.tsx
-  await createWorkflowTemplate(options.force, results);
+  await createWorkflowTemplate(options.force, options.template, results);
 
   // Create TAKOPI_SMITHERS.md
   await createTakopiSmithersMd(options.force, results);
@@ -125,6 +126,7 @@ async function createConfigToml(
 
 async function createWorkflowTemplate(
   force: boolean | undefined,
+  templateChoice: 'default' | 'api-builder' | 'refactor' | 'feature' | 'minimal' | undefined,
   results: { created: string[]; skipped: string[]; backed_up: string[] }
 ): Promise<void> {
   const path = '.smithers/workflow.tsx';
@@ -142,10 +144,15 @@ async function createWorkflowTemplate(
     results.backed_up.push(backupPath);
   }
 
+  // Use default template if not provided (non-interactive mode)
+  const choice = templateChoice ?? 'default';
+
+  // For now, only support 'default' template
+  // TODO: Add support for other templates (api-builder, refactor, feature, minimal)
   const template = WORKFLOW_TEMPLATE;
+  results.created.push(path);
 
   await Bun.write(path, template);
-  results.created.push(path);
 }
 
 async function createTakopiSmithersMd(

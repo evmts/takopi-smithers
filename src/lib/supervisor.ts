@@ -19,14 +19,23 @@ export class Supervisor {
   private workflowWatcher: ReturnType<typeof fs.watch> | null = null;
   private workflowRestartDebounceTimer: Timer | null = null;
   private isHandlingHang = false;
+  private startTime: number = 0;
 
   constructor(config: Config, dryRun: boolean = false) {
     this.config = config;
     this.dryRun = dryRun;
   }
 
+  public getUptime(): number {
+    if (this.startTime === 0) return 0;
+    return Math.floor((Date.now() - this.startTime) / 1000);
+  }
+
   async start(): Promise<void> {
     await log("Starting supervisor...");
+
+    // Track start time
+    this.startTime = Date.now();
 
     // Start Takopi subprocess (skip in dry-run mode for testing)
     if (!this.dryRun) {
@@ -180,7 +189,36 @@ export class Supervisor {
     await new Promise((resolve) => setTimeout(resolve, delaySec * 1000));
 
     this.restartAttempts++;
+    this.persistRestartCount();
     await this.startSmithers();
+  }
+
+  private persistRestartCount(): void {
+    try {
+      const { Database } = require("bun:sqlite");
+      const db = new Database(this.config.workflow.db);
+      db.run(
+        "INSERT OR REPLACE INTO state (key, value) VALUES (?, ?)",
+        ["supervisor.restart_count", this.restartAttempts.toString()]
+      );
+      db.close();
+    } catch (error) {
+      // Silently fail - this is just for metrics
+    }
+  }
+
+  private persistAutoHealCount(): void {
+    try {
+      const { Database } = require("bun:sqlite");
+      const db = new Database(this.config.workflow.db);
+      db.run(
+        "INSERT OR REPLACE INTO state (key, value) VALUES (?, ?)",
+        ["supervisor.autoheal_count", this.autoHealAttempts.toString()]
+      );
+      db.close();
+    } catch (error) {
+      // Silently fail - this is just for metrics
+    }
   }
 
   private async startWorkflowWatcher(): Promise<void> {

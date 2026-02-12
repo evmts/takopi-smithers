@@ -69,3 +69,70 @@ export function isHeartbeatStale(
     return true; // If heartbeat is malformed, treat as stale
   }
 }
+
+export function getHeartbeatAge(dbPath: string): number | null {
+  const state = queryWorkflowState(dbPath);
+  if (!state.heartbeat) return null;
+
+  try {
+    const heartbeatTime = new Date(state.heartbeat).getTime();
+    if (isNaN(heartbeatTime)) return null;
+
+    const now = Date.now();
+    const ageSeconds = (now - heartbeatTime) / 1000;
+
+    return ageSeconds;
+  } catch {
+    return null;
+  }
+}
+
+export function formatHeartbeatAge(seconds: number): string {
+  if (seconds < 60) {
+    return `${Math.floor(seconds)} seconds ago`;
+  } else if (seconds < 3600) {
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+  } else if (seconds < 86400) {
+    const hours = Math.floor(seconds / 3600);
+    return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  } else {
+    const days = Math.floor(seconds / 86400);
+    return `${days} day${days > 1 ? 's' : ''} ago`;
+  }
+}
+
+export interface WorkflowProgress {
+  restarts: number;
+  autoheals: number;
+}
+
+export function getWorkflowProgress(dbPath: string): WorkflowProgress {
+  if (!fs.existsSync(dbPath)) {
+    return { restarts: 0, autoheals: 0 };
+  }
+
+  const db = new Database(dbPath, { readonly: true });
+
+  try {
+    // Query for restart and autoheal counts from state table
+    const restartRow = db
+      .query<{ value: string }, []>(
+        "SELECT value FROM state WHERE key = 'supervisor.restart_count'"
+      )
+      .get();
+
+    const autohealRow = db
+      .query<{ value: string }, []>(
+        "SELECT value FROM state WHERE key = 'supervisor.autoheal_count'"
+      )
+      .get();
+
+    return {
+      restarts: restartRow ? parseInt(restartRow.value, 10) || 0 : 0,
+      autoheals: autohealRow ? parseInt(autohealRow.value, 10) || 0 : 0,
+    };
+  } finally {
+    db.close();
+  }
+}
