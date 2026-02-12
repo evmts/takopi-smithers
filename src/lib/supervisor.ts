@@ -242,7 +242,7 @@ export class Supervisor {
           this.workflowRestartDebounceTimer = setTimeout(async () => {
             await log('Debounce completed, restarting workflow due to file change...');
             await this.restartDueToFileChange();
-          }, 2000); // 2 second debounce
+          }, 1000); // 1 second debounce
         }
       );
 
@@ -255,22 +255,34 @@ export class Supervisor {
   private async restartDueToFileChange(): Promise<void> {
     await log('Restarting Smithers due to workflow file change...');
 
-    // Reset restart attempts since this is a manual/file-triggered restart, not a crash
-    this.restartAttempts = 0;
-    this.autoHealAttempts = 0;
+    try {
+      // Check if workflow file still exists
+      const workflowExists = await Bun.file(this.config.workflow.script).exists();
+      if (!workflowExists) {
+        await log(`Workflow file ${this.config.workflow.script} was deleted. Skipping restart.`, 'error');
+        return;
+      }
 
-    // Kill existing process
-    if (this.smithersProc && this.smithersProc.exitCode === null) {
-      this.smithersProc.kill();
-      await this.smithersProc.exited;
+      // Reset restart attempts since this is a manual/file-triggered restart, not a crash
+      this.restartAttempts = 0;
+      this.autoHealAttempts = 0;
+
+      // Kill existing process
+      if (this.smithersProc && this.smithersProc.exitCode === null) {
+        this.smithersProc.kill();
+        await this.smithersProc.exited;
+      }
+
+      // Start new process
+      await this.startSmithers();
+      await log('Workflow restarted successfully after file change');
+
+      // Optionally send Telegram notification
+      await this.sendFileChangeNotification();
+    } catch (error) {
+      await log(`Failed to restart workflow after file change: ${error}`, 'error');
+      // Don't throw - just log the error so the supervisor keeps running
     }
-
-    // Start new process
-    await this.startSmithers();
-    await log('Workflow restarted successfully after file change');
-
-    // Optionally send Telegram notification
-    await this.sendFileChangeNotification();
   }
 
   private async sendFileChangeNotification(): Promise<void> {

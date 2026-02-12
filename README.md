@@ -211,8 +211,20 @@ The supervisor:
 - Polls `supervisor.heartbeat` in the SQLite DB every 10s
 - Kills and restarts the workflow if heartbeat goes stale
 - Posts formatted status updates to Telegram on a timer
-- Watches `.smithers/workflow.tsx` for file changes and auto-restarts
+- **Watches `.smithers/workflow.tsx` for file changes and auto-restarts** (with 1 second debounce)
 - On crash, optionally runs an auto-heal agent pass before restarting
+
+### Auto-Reload on File Changes
+
+The supervisor automatically watches your workflow file (`.smithers/workflow.tsx`) for changes. When you edit and save the file:
+
+1. **Debounce**: Changes are debounced with a 1-second delay (rapid successive saves only trigger one restart)
+2. **Graceful Restart**: The current Smithers process is killed gracefully and a new one starts
+3. **Counter Reset**: Restart attempt counters are reset (file changes are intentional, not crashes)
+4. **Telegram Notification**: You'll receive a notification that the workflow was reloaded
+5. **Error Handling**: If the file is deleted or has syntax errors, the supervisor logs the error and continues running
+
+This makes iterative workflow development seamless - just save your changes and the supervisor handles the rest.
 
 Smithers state persists in SQLite and can resume incomplete executions after restart.
 

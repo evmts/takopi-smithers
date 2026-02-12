@@ -108,6 +108,93 @@ max_attempts = 3
     // Null/undefined heartbeat is stale
     expect(isHeartbeatStale(null, 300)).toBe(true);
   });
+
+  test('Workflow file-watch auto-reload integration', async () => {
+    const { Supervisor } = await import('./lib/supervisor');
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+
+    // Create temp directory and workflow file
+    const testDir = await fs.mkdtemp(path.join('/tmp', 'file-watch-test-'));
+    const workflowPath = path.join(testDir, 'workflow.tsx');
+    const dbPath = path.join(testDir, 'workflow.db');
+
+    try {
+      // Write initial workflow file
+      await Bun.write(workflowPath, `
+        import { smithers, Workflow, Task, ClaudeCodeAgent } from "smithers-orchestrator";
+        // Initial version
+        export default smithers(null, () => <Workflow name="test"><Task id="noop">noop</Task></Workflow>);
+      `);
+
+      // Create test config
+      const config = {
+        version: 1,
+        workflow: {
+          script: workflowPath,
+          db: dbPath,
+        },
+        updates: {
+          enabled: false,
+          interval_seconds: 600,
+        },
+        health: {
+          heartbeat_key: 'supervisor.heartbeat',
+          heartbeat_write_interval_seconds: 30,
+          hang_threshold_seconds: 300,
+          restart_backoff_seconds: [5, 30, 120, 600],
+          max_restart_attempts: 20,
+        },
+        telegram: {
+          bot_token: '',
+          chat_id: 0,
+        },
+        autoheal: {
+          enabled: false,
+          engine: 'claude' as const,
+          max_attempts: 3,
+        },
+      };
+
+      // Start supervisor
+      const supervisor = new Supervisor(config, true);
+      await supervisor.start();
+
+      // Wait for supervisor to be stable
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Get initial process info
+      const supervisorAny = supervisor as any;
+      const initialProc = supervisorAny.smithersProc;
+
+      // Modify workflow file
+      await Bun.write(workflowPath, `
+        import { smithers, Workflow, Task, ClaudeCodeAgent } from "smithers-orchestrator";
+        // Modified version - this comment was added
+        export default smithers(null, () => <Workflow name="test"><Task id="noop">noop</Task></Workflow>);
+      `);
+
+      // Wait for debounce (1000ms) + restart time
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Verify new process was spawned
+      const newProc = supervisorAny.smithersProc;
+
+      // Processes should be different (old one killed, new one started)
+      expect(newProc).not.toBe(initialProc);
+
+      // Verify old process is not running
+      if (initialProc) {
+        expect(initialProc.exitCode).not.toBe(null);
+      }
+
+      // Cleanup
+      await supervisor.stop();
+    } finally {
+      // Cleanup temp directory
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
+  });
 } else {
   test.skip('integration tests (set RUN_INTEGRATION=1 to run)', () => {
     // Placeholder test
