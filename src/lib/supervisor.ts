@@ -148,12 +148,15 @@ export class Supervisor {
       );
 
       this.autoHealAttempts++;
+      this.persistAutoHealCount();
 
       if (healSuccess) {
         await log('Auto-heal successful! Resetting restart counter.');
         // Reset counters on successful heal
         this.restartAttempts = 0;
         this.autoHealAttempts = 0;
+        this.persistRestartCount();
+        this.persistAutoHealCount();
 
         // Notify via Telegram
         await this.sendAutoHealNotification(true);

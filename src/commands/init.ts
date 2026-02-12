@@ -147,12 +147,173 @@ async function createWorkflowTemplate(
   // Use default template if not provided (non-interactive mode)
   const choice = templateChoice ?? 'default';
 
-  // For now, only support 'default' template
-  // TODO: Add support for other templates (api-builder, refactor, feature, minimal)
-  const template = WORKFLOW_TEMPLATE;
-  results.created.push(path);
+  let template: string;
+  switch (choice) {
+    case 'api-builder':
+      template = await getExampleWorkflow('api-builder.tsx');
+      results.created.push(path + ' (API builder template)');
+      break;
+    case 'refactor':
+      template = await getExampleWorkflow('refactor-codebase.tsx');
+      results.created.push(path + ' (Refactoring template)');
+      break;
+    case 'feature':
+      template = await getExampleWorkflow('feature-implementation.tsx');
+      results.created.push(path + ' (Feature implementation template)');
+      break;
+    case 'minimal':
+      template = getMinimalTemplate();
+      results.created.push(path + ' (Minimal template)');
+      break;
+    case 'default':
+    default:
+      template = WORKFLOW_TEMPLATE;
+      results.created.push(path);
+      break;
+  }
 
   await Bun.write(path, template);
+}
+
+async function getExampleWorkflow(filename: string): Promise<string> {
+  // Try to read from examples directory
+  const examplesPath = `examples/workflows/${filename}`;
+  const examplesExists = await Bun.file(examplesPath).exists();
+
+  if (examplesExists) {
+    return await Bun.file(examplesPath).text();
+  }
+
+  // Fallback: read from package installation
+  const packagePath = `node_modules/takopi-smithers/examples/workflows/${filename}`;
+  const packageExists = await Bun.file(packagePath).exists();
+
+  if (packageExists) {
+    return await Bun.file(packagePath).text();
+  }
+
+  // Fallback to default template
+  console.warn(`Warning: Could not find ${filename}, using default template`);
+  return WORKFLOW_TEMPLATE;
+}
+
+function getMinimalTemplate(): string {
+  return `import { smithers, Workflow, Task, ClaudeCodeAgent } from "smithers-orchestrator";
+import { drizzle } from "drizzle-orm/bun-sqlite";
+import { sqliteTable, text, primaryKey } from "drizzle-orm/sqlite-core";
+
+// ---------------------------------------------------------------------------
+// Schema - Define your tables here
+// ---------------------------------------------------------------------------
+
+const inputTable = sqliteTable("input", {
+  runId: text("run_id").primaryKey(),
+  // Add your input fields here
+});
+
+const outputTable = sqliteTable(
+  "output",
+  {
+    runId: text("run_id").notNull(),
+    nodeId: text("node_id").notNull(),
+    // Add your output fields here
+    result: text("result").notNull(),
+  },
+  (t) => ({ pk: primaryKey({ columns: [t.runId, t.nodeId] }) })
+);
+
+export const schema = {
+  input: inputTable,
+  output: outputTable,
+};
+
+export const db = drizzle(".smithers/workflow.db", { schema });
+
+// Create tables
+(db as any).$client.exec(\`
+  CREATE TABLE IF NOT EXISTS input (
+    run_id TEXT PRIMARY KEY
+  );
+  CREATE TABLE IF NOT EXISTS output (
+    run_id TEXT NOT NULL, node_id TEXT NOT NULL,
+    result TEXT NOT NULL,
+    PRIMARY KEY (run_id, node_id)
+  );
+  CREATE TABLE IF NOT EXISTS state (
+    key TEXT PRIMARY KEY, value TEXT NOT NULL,
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+\`);
+
+// ---------------------------------------------------------------------------
+// Supervisor state helpers
+// ---------------------------------------------------------------------------
+
+function updateState(key: string, value: string) {
+  try {
+    (db as any).$client.run(
+      "INSERT OR REPLACE INTO state (key, value, updated_at) VALUES (?, ?, datetime('now'))",
+      [key, value]
+    );
+  } catch (err) {
+    console.error(\`Failed to update state "\${key}":\`, err);
+  }
+}
+
+updateState("supervisor.status", "running");
+updateState("supervisor.summary", "Workflow initialized");
+updateState("supervisor.heartbeat", new Date().toISOString());
+
+setInterval(() => {
+  try {
+    updateState("supervisor.heartbeat", new Date().toISOString());
+  } catch (err) {
+    console.error("Heartbeat failed:", err);
+  }
+}, 30000);
+
+// ---------------------------------------------------------------------------
+// Agents
+// ---------------------------------------------------------------------------
+
+const cliEnv = { ANTHROPIC_API_KEY: "" };
+
+const myAgent = new ClaudeCodeAgent({
+  model: "sonnet",
+  env: cliEnv,
+  systemPrompt: "You are a helpful assistant. Respond with JSON: { \\"result\\": \\"string\\" }",
+});
+
+// ---------------------------------------------------------------------------
+// Workflow
+// ---------------------------------------------------------------------------
+
+export default smithers(db, (ctx) => {
+  updateState("supervisor.status", "running");
+  updateState("supervisor.summary", "Processing...");
+
+  return (
+    <Workflow name="my-workflow">
+      <Task id="my-task" output={schema.output} agent={myAgent}>
+        Your prompt here
+      </Task>
+    </Workflow>
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Shutdown handlers
+// ---------------------------------------------------------------------------
+
+process.on("beforeExit", () => {
+  try {
+    updateState("supervisor.status", "done");
+    updateState("supervisor.summary", "Workflow complete");
+  } catch (err) {
+    console.error("Failed to update final state:", err);
+  }
+});
+`;
 }
 
 async function createTakopiSmithersMd(
