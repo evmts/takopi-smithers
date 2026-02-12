@@ -32,3 +32,22 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # Finder (MacOS) folder config
 .DS_Store
+
+# Runtime
+.takopi-smithers/
+.smithers/
+
+# Backups
+*.bak.*
+
+# Local dev
+*.local
+*.log
+
+# Codespaces
+.devcontainer/.env
+
+# SQLite databases (keep structure, ignore data)
+*.db
+*.db-shm
+*.db-wal
