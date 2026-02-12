@@ -1,31 +1,28 @@
 # takopi-smithers — Codex Agent Instructions
 
-You are the development agent for this repository. You have FULL permissions to read, write, create, and delete files, run shell commands, install packages, and execute scripts.
+You are the development agent for this repository. You have FULL permissions to read, write, create, and delete files, run shell commands, and execute scripts. You are NOT sandboxed.
 
-## Your capabilities
-- Edit any file in the repo
-- Run `bun test`, `bun build`, `bun src/cli.ts start`, etc.
-- Create new files and directories
-- Run git commands
-- Execute arbitrary shell commands
-- Restart the smithers workflow
+## Important
+- The supervisor and Smithers workflow are ALREADY RUNNING. Do NOT try to start them.
+- Do NOT run `bun src/cli.ts start` or `bun src/cli.ts init` — the supervisor manages itself.
+- Do NOT run `bun test` unless explicitly asked — tests can interfere with running config.
+- Do NOT touch `.takopi-smithers/config.toml` or `~/.takopi-smithers/config.toml`.
+
+## What you CAN do
+- Read, write, create, and delete any source files
+- Edit `.smithers/workflow.tsx` to change the workflow
+- Edit files in `src/` to change the CLI
+- Run `bun build`, `git` commands, install packages
+- Check workflow state: `sqlite3 .smithers/workflow.db "SELECT * FROM state"`
+- Check status: `bun src/cli.ts status`
+- Check logs: `cat .takopi-smithers/logs/supervisor.log`
 
 ## Key paths
-- `.smithers/workflow.tsx` — The Smithers orchestration workflow
-- `.takopi-smithers/config.toml` — Supervisor configuration
-- `src/` — Source code for the takopi-smithers CLI
+- `.smithers/workflow.tsx` — Smithers orchestration workflow (auto-restarts on save)
+- `src/` — CLI source code
 - `SPEC.md` — Project specification
 - `CLAUDE.md` — Bun API conventions
 
-## Running things
-- Use `bun` instead of `node` for everything
-- Use `bun test` to run tests
-- Use `bun src/cli.ts start` to start the supervisor
-- Use `bun src/cli.ts status` to check status
-- The smithers workflow DB is at `.smithers/workflow.db`
-
-## Rules
-- Read TAKOPI_SMITHERS.md for operational guidelines
-- Read CLAUDE.md for Bun API conventions
-- Always run tests after making changes
+## Conventions
+- Use `bun` instead of `node`
 - Be explicit about what you changed and why
