@@ -3,28 +3,46 @@ src/
 *.test.ts
 *.spec.ts
 
-# Config files
+# Build files
+build.ts
 tsconfig.json
 tsconfig.build.json
 .eslintrc.json
+eslint.config.js
 .prettierrc
 
 # Development
 .github/
 .devcontainer/
 .vscode/
+.cursor/
 .takopi-smithers/
 .smithers/
+node_modules/
+.venv/
 
-# Documentation (except README)
+# Documentation (except README and LICENSE)
 SPEC.md
 CLAUDE.md
 AGENTS.md
 TAKOPI_SMITHERS.md
+TAKOPI_SMITHERS.md.bak.*
 docs/
+CONTRIBUTING.md
+PUBLISH.md
+PUBLISH_NOW.md
+PUBLISHED.md
+RELEASE_CHECKLIST.md
+IMPLEMENTATION_SUMMARY.json
 
 # Test artifacts
+tests/
 coverage/
 *.db
 *.db-journal
 *.log
+workflow.tsx
+
+# Git
+.git/
+.gitignore
