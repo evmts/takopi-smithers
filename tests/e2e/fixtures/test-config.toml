@@ -1,0 +1,25 @@
+version = 1
+
+[workflow]
+script = ".smithers/workflow.tsx"
+db = ".smithers/workflow.db"
+
+[updates]
+enabled = false  # Disable for tests to avoid Telegram calls
+interval_seconds = 60
+
+[health]
+heartbeat_key = "supervisor.heartbeat"
+heartbeat_write_interval_seconds = 5
+hang_threshold_seconds = 15  # Short timeout for testing
+restart_backoff_seconds = [2, 5, 10, 15]  # Faster backoff for testing
+max_restart_attempts = 5
+
+[telegram]
+bot_token = ""
+chat_id = 0
+
+[autoheal]
+enabled = false
+engine = "claude"
+max_attempts = 3
