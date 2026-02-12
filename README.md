@@ -10,7 +10,7 @@ Includes a supervisor that posts periodic status updates, restarts on failure, a
 - Takopi: https://takopi.dev
 - Smithers: https://smithers.sh
 
-<img width="512" height="768" alt="image" src="https://github.com/user-attachments/assets/c7d20c08-9bff-449a-9eb7-3875703d3539" />
+<img width="256" height="384" alt="image" src="https://github.com/user-attachments/assets/c7d20c08-9bff-449a-9eb7-3875703d3539" />
 
 ## Who this is for
 
