@@ -52,10 +52,20 @@ export class Supervisor {
     await log("Supervisor started successfully");
   }
 
+  private async resolveTakopiBin(): Promise<string> {
+    // Prefer repo-local .venv/bin/takopi, fall back to PATH
+    const localBin = `${process.cwd()}/.venv/bin/takopi`;
+    if (await Bun.file(localBin).exists()) return localBin;
+    return "takopi";
+  }
+
   private async startTakopi(): Promise<void> {
     await log("Starting Takopi...");
 
-    this.takopiProc = Bun.spawn(["takopi"], {
+    const takopiBin = await this.resolveTakopiBin();
+    await log(`Using takopi binary: ${takopiBin}`);
+
+    this.takopiProc = Bun.spawn([takopiBin], {
       cwd: process.cwd(),
       stdout: "pipe",
       stderr: "inherit",
