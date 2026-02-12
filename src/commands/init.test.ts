@@ -114,25 +114,21 @@ test("workflow.tsx includes supervisor state keys", async () => {
   expect(workflowContent).toContain("30000"); // 30 seconds
 });
 
-test("workflow.tsx uses modern Smithers v0.5 API", async () => {
+test("workflow.tsx uses multi-phase smithers workflow pattern", async () => {
   await init();
 
   const workflowContent = await Bun.file(".smithers/workflow.tsx").text();
 
-  // Check for modern API imports
-  expect(workflowContent).toContain("createSmithers");
-  expect(workflowContent).toContain('from "smithers-orchestrator"');
-  expect(workflowContent).toContain("bun:sqlite");
-  expect(workflowContent).toContain("ToolLoopAgent");
-  expect(workflowContent).toContain('from "ai"');
-  expect(workflowContent).toContain("@ai-sdk/anthropic");
-  expect(workflowContent).toContain('from "zod"');
+  // Check for smithers direct imports (not smithers-orchestrator)
+  expect(workflowContent).toContain('from "smithers"');
+  expect(workflowContent).toContain("ClaudeCodeAgent");
+  expect(workflowContent).toContain("drizzle-orm");
 
-  // Check for createSmithers usage
-  expect(workflowContent).toContain("const { Workflow, smithers, tables } = createSmithers");
-
-  // Check for Zod schema
-  expect(workflowContent).toContain("z.object");
+  // Check for multi-phase schema tables
+  expect(workflowContent).toContain("planTable");
+  expect(workflowContent).toContain("implementTable");
+  expect(workflowContent).toContain("reviewTable");
+  expect(workflowContent).toContain("fixTable");
 
   // Check for state table creation
   expect(workflowContent).toContain("CREATE TABLE IF NOT EXISTS state");
@@ -140,16 +136,14 @@ test("workflow.tsx uses modern Smithers v0.5 API", async () => {
   // Check for updateState helper
   expect(workflowContent).toContain("function updateState");
 
-  // Check for modern workflow export
-  expect(workflowContent).toContain("export default smithers((ctx) =>");
+  // Check for workflow export with db
+  expect(workflowContent).toContain("export default smithers(db,");
+
+  // Check for phase state machine
+  expect(workflowContent).toContain("computePhase");
 
   // Check for process.on('beforeExit')
   expect(workflowContent).toContain('process.on("beforeExit"');
-
-  // Make sure it doesn't use deprecated API
-  expect(workflowContent).not.toContain("drizzle-orm");
-  expect(workflowContent).not.toContain("onStart");
-  expect(workflowContent).not.toContain("onComplete");
 });
 
 test("CLAUDE.md appends to existing file", async () => {

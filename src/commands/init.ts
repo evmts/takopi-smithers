@@ -1,5 +1,6 @@
 import * as TOML from '@iarna/toml';
 import { findWorktreeByName, getWorktreeConfigPath, getWorktreeDbPath, getWorktreeWorkflowPath, getWorktreeLogsPath } from '../lib/worktree';
+import { WORKFLOW_TEMPLATE } from './workflow-template';
 
 interface InitOptions {
   force?: boolean;
@@ -93,6 +94,7 @@ async function createConfigToml(
     workflow: {
       script: '.smithers/workflow.tsx',
       db: '.smithers/workflow.db',
+      // input: { specPath: 'SPEC.md' },
     },
     updates: {
       enabled: true,
@@ -140,102 +142,7 @@ async function createWorkflowTemplate(
     results.backed_up.push(backupPath);
   }
 
-  const template = `import { createSmithers, Task } from "smithers-orchestrator";
-import { ToolLoopAgent as Agent } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
-import { z } from "zod";
-import Database from "bun:sqlite";
-
-// Define output schemas for workflow tasks
-const ExampleOutput = z.object({
-  message: z.string(),
-  timestamp: z.string(),
-});
-
-// Initialize Smithers with schema registry
-const { Workflow, smithers, tables } = createSmithers(
-  {
-    example: ExampleOutput,
-  },
-  { dbPath: ".smithers/workflow.db" }
-);
-
-// Create agent for tasks
-const agent = new Agent({
-  model: anthropic("claude-sonnet-4-20250514"),
-  instructions: "You are a helpful assistant.",
-});
-
-// Setup supervisor state management (uses raw SQLite for supervisor integration)
-const db = new Database(".smithers/workflow.db");
-
-// Create state table if it doesn't exist (for supervisor.heartbeat, etc.)
-db.run(\`
-  CREATE TABLE IF NOT EXISTS state (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL,
-    updated_at TEXT DEFAULT (datetime('now'))
-  )
-\`);
-
-// Helper to update supervisor state
-function updateState(key: string, value: string) {
-  db.run(
-    "INSERT OR REPLACE INTO state (key, value, updated_at) VALUES (?, ?, datetime('now'))",
-    [key, value]
-  );
-}
-
-// Initialize supervisor state
-updateState("supervisor.status", "running");
-updateState("supervisor.summary", "Workflow initialized");
-updateState("supervisor.heartbeat", new Date().toISOString());
-
-// Heartbeat updater (runs in background, required by supervisor)
-if (typeof globalThis !== "undefined") {
-  setInterval(() => {
-    try {
-      updateState("supervisor.heartbeat", new Date().toISOString());
-    } catch (err) {
-      console.error("Failed to write heartbeat:", err);
-    }
-  }, 30000); // 30 seconds (matches config.health.heartbeat_write_interval_seconds)
-}
-
-// Export the workflow
-export default smithers((ctx) => {
-  // Update status when workflow starts
-  updateState("supervisor.status", "running");
-  updateState("supervisor.summary", "Workflow is executing tasks");
-
-  return (
-    <Workflow name="example-workflow">
-      <Task id="example-task" output="example" agent={agent}>
-        This is a placeholder task. Replace with your actual workflow logic.
-
-        The supervisor expects these state keys to be maintained:
-        - supervisor.heartbeat (ISO timestamp, updated every 30s by setInterval above)
-        - supervisor.status (idle|running|error|done)
-        - supervisor.summary (1-3 sentence summary for status updates)
-        - supervisor.last_error (optional, set on errors)
-
-        To update state from within a task, use the updateState() helper:
-        updateState("supervisor.summary", "Currently processing step 1 of 3");
-      </Task>
-    </Workflow>
-  );
-});
-
-// Mark workflow as done (this runs after all tasks complete)
-process.on("beforeExit", () => {
-  try {
-    updateState("supervisor.status", "done");
-    updateState("supervisor.summary", "Workflow completed successfully");
-  } catch (err) {
-    console.error("Failed to update final state:", err);
-  }
-});
-`;
+  const template = WORKFLOW_TEMPLATE;
 
   await Bun.write(path, template);
   results.created.push(path);
