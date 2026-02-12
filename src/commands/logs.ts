@@ -5,6 +5,61 @@ interface LogsOptions {
   lines?: number;
   level?: 'info' | 'warn' | 'error';
   worktree?: string;
+  since?: string;
+}
+
+// ANSI color codes
+const colors = {
+  reset: '\x1b[0m',
+  red: '\x1b[31m',
+  yellow: '\x1b[33m',
+  dim: '\x1b[2m',
+};
+
+function parseSince(since: string): number {
+  const match = since.match(/^(\d+)([smhd])$/);
+  if (!match) {
+    throw new Error('Invalid --since format. Use format like: 5s, 10m, 2h, 1d');
+  }
+
+  const value = parseInt(match[1]!, 10);
+  const unit = match[2]!;
+
+  const multipliers: Record<string, number> = {
+    s: 1,
+    m: 60,
+    h: 3600,
+    d: 86400,
+  };
+
+  return value * multipliers[unit]! * 1000; // Return milliseconds
+}
+
+function colorizeLogLine(line: string): string {
+  // Colorize based on log level
+  if (line.includes('[error]')) {
+    return `${colors.red}${line}${colors.reset}`;
+  } else if (line.includes('[warn]')) {
+    return `${colors.yellow}${line}${colors.reset}`;
+  }
+  return line;
+}
+
+function filterByTime(lines: string[], sinceMs: number): string[] {
+  const cutoffTime = Date.now() - sinceMs;
+
+  return lines.filter(line => {
+    // Extract timestamp from log line (format: [2026-02-12T00:00:00Z])
+    const timestampMatch = line.match(/\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z)\]/);
+    if (!timestampMatch) return true; // Include lines without timestamps
+
+    try {
+      const lineTime = new Date(timestampMatch[1]!).getTime();
+      return lineTime >= cutoffTime;
+    } catch {
+      return true; // Include lines with invalid timestamps
+    }
+  });
 }
 
 export async function logs(options: LogsOptions = {}): Promise<void> {
@@ -29,22 +84,26 @@ export async function logs(options: LogsOptions = {}): Promise<void> {
 
   const numLines = options.lines || 50;
   const levelFilter = options.level;
+  const sinceMs = options.since ? parseSince(options.since) : null;
 
   // Helper to filter and print log lines
   function printFilteredLines(content: string, fromEnd: boolean = true): void {
     const allLines = content.split('\n').filter(l => l.trim());
 
+    // Filter by time if --since is specified
+    let filtered = sinceMs ? filterByTime(allLines, sinceMs) : allLines;
+
     // Filter by level if specified
-    let filtered = allLines;
     if (levelFilter) {
       const pattern = new RegExp(`\\[${levelFilter}\\]`, 'i');
-      filtered = allLines.filter(line => pattern.test(line));
+      filtered = filtered.filter(line => pattern.test(line));
     }
 
     // Get last N lines or all
     const lines = fromEnd ? filtered.slice(-numLines) : filtered;
 
-    lines.forEach(line => console.log(line));
+    // Colorize and print
+    lines.forEach(line => console.log(colorizeLogLine(line)));
   }
 
   if (options.follow) {
