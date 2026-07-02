@@ -2,640 +2,187 @@
 
 This guide explains how to write production-ready Smithers workflows for takopi-smithers.
 
-## Table of Contents
-
-- [Quick Start](#quick-start)
-- [Schema Design Best Practices](#schema-design-best-practices)
-- [State Key Contract](#state-key-contract)
-- [Error Handling Patterns](#error-handling-patterns)
-- [Resumability Patterns](#resumability-patterns)
-- [Testing Workflows Locally](#testing-workflows-locally)
-- [Common Pitfalls](#common-pitfalls)
-- [Example Workflows](#example-workflows)
-
 ## Quick Start
 
-Every workflow needs these components:
+Every workflow needs these pieces:
 
-1. **Schema** - Drizzle ORM table definitions for all input/output data
-2. **Database** - SQLite database with table creation SQL
-3. **State helpers** - Functions to update supervisor state keys
-4. **Agents** - ClaudeCodeAgent instances with system prompts
-5. **Workflow logic** - TSX tree using `<Workflow>`, `<Task>`, `<Ralph>`, etc.
-6. **Shutdown handlers** - Update state on exit
+1. **Zod schemas** for workflow input and task outputs
+2. **`createSmithers`** to create workflow components, output handles, and SQLite storage
+3. **Supervisor state helpers** for status, summary, heartbeat, and errors
+4. **Agents** such as `ClaudeCodeAgent`
+5. **Workflow logic** using `<Workflow>`, `<Task>`, `<Sequence>`, `<Ralph>`, and related components
+6. **Shutdown handlers** that mark the workflow done when the process exits
 
 ```tsx
-import { smithers, Workflow, Task } from "smithers-orchestrator";
-import { drizzle } from "drizzle-orm/bun-sqlite";
-import { sqliteTable, text, primaryKey } from "drizzle-orm/sqlite-core";
+import { createSmithers, ClaudeCodeAgent } from "smithers-orchestrator";
+import { z } from "zod";
 
-// 1. Schema
-const inputTable = sqliteTable("input", {
-  runId: text("run_id").primaryKey(),
-  myInput: text("my_input").notNull(),
+const inputSchema = z.object({
+  myInput: z.string().default("hello"),
 });
 
-const outputTable = sqliteTable("output", {
-  runId: text("run_id").notNull(),
-  nodeId: text("node_id").notNull(),
-  result: text("result").notNull(),
-}, (t) => ({ pk: primaryKey({ columns: [t.runId, t.nodeId] }) }));
+const outputSchema = z.object({
+  result: z.string(),
+});
 
-export const schema = { input: inputTable, output: outputTable };
+const { Workflow, Task, smithers, outputs, db } = createSmithers(
+  {
+    input: inputSchema,
+    output: outputSchema,
+  },
+  { dbPath: ".smithers/my-workflow.db" }
+);
 
-// 2. Database
-export const db = drizzle(".smithers/my-workflow.db", { schema });
-(db as any).$client.exec(`
-  CREATE TABLE IF NOT EXISTS input (run_id TEXT PRIMARY KEY, my_input TEXT NOT NULL);
-  CREATE TABLE IF NOT EXISTS output (run_id TEXT NOT NULL, node_id TEXT NOT NULL, result TEXT NOT NULL, PRIMARY KEY (run_id, node_id));
-  CREATE TABLE IF NOT EXISTS state (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT DEFAULT (datetime('now')));
-`);
+const sqlite = (db as any).$client as {
+  exec: (sql: string) => unknown;
+  run: (sql: string, params?: unknown[]) => unknown;
+};
 
-// 3. State helpers
+sqlite.exec([
+  "CREATE TABLE IF NOT EXISTS state (",
+  "  key TEXT PRIMARY KEY,",
+  "  value TEXT NOT NULL,",
+  "  updated_at TEXT DEFAULT (datetime('now'))",
+  ")",
+].join("\n"));
+
 function updateState(key: string, value: string) {
-  try {
-    (db as any).$client.run(
-      "INSERT OR REPLACE INTO state (key, value, updated_at) VALUES (?, ?, datetime('now'))",
-      [key, value]
-    );
-  } catch (err) {
-    console.error(`Failed to update state ${key}:`, err);
-  }
+  sqlite.run(
+    "INSERT OR REPLACE INTO state (key, value, updated_at) VALUES (?, ?, datetime('now'))",
+    [key, value]
+  );
 }
 
 updateState("supervisor.status", "running");
 updateState("supervisor.summary", "Workflow initialized");
 updateState("supervisor.heartbeat", new Date().toISOString());
 
-setInterval(() => {
-  try {
-    updateState("supervisor.heartbeat", new Date().toISOString());
-  } catch (err) {
-    console.error("Heartbeat failed:", err);
-  }
+const heartbeatTimer = setInterval(() => {
+  updateState("supervisor.heartbeat", new Date().toISOString());
 }, 30000);
+heartbeatTimer.unref?.();
 
-// 4. Agents
-const myAgent = new ClaudeCodeAgent({
+const agent = new ClaudeCodeAgent({
   model: "sonnet",
   env: { ANTHROPIC_API_KEY: "" },
   systemPrompt: "You are a helpful assistant. Respond with JSON: { \"result\": \"string\" }",
 });
 
-// 5. Workflow logic
-export default smithers(db, (ctx) => {
+export default smithers((ctx) => {
   updateState("supervisor.status", "running");
   updateState("supervisor.summary", "Processing...");
 
   return (
     <Workflow name="my-workflow">
-      <Task id="my-task" output={schema.output} agent={myAgent}>
+      <Task id="my-task" output={outputs.output} agent={agent}>
         {`Process this input: ${ctx.input.myInput}`}
       </Task>
     </Workflow>
   );
 });
 
-// 6. Shutdown handlers
 process.on("beforeExit", () => {
-  try {
-    updateState("supervisor.status", "done");
-    updateState("supervisor.summary", "Workflow complete");
-  } catch (err) {
-    console.error("Failed to update final state:", err);
-  }
+  updateState("supervisor.status", "done");
+  updateState("supervisor.summary", "Workflow complete");
 });
 ```
 
-## Schema Design Best Practices
+## Schema Design
 
-### Use Composite Primary Keys
-
-For tables that track iterations (like plan→implement→review loops), use composite primary keys:
+Use one Zod object per logical task output. Give each task a stable `id`, and pass the matching handle from `outputs`.
 
 ```tsx
-const taskTable = sqliteTable(
-  "task",
-  {
-    runId: text("run_id").notNull(),
-    nodeId: text("node_id").notNull(),
-    iteration: integer("iteration").notNull().default(0),
-    data: text("data").notNull(),
-  },
-  (t) => ({ pk: primaryKey({ columns: [t.runId, t.nodeId, t.iteration] }) })
-);
-```
-
-This ensures each execution is uniquely identified and resumable.
-
-### Use JSON Columns for Arrays and Objects
-
-Store complex data types using `{ mode: "json" }`:
-
-```tsx
-filesChanged: text("files_changed", { mode: "json" }).$type<string[]>(),
-metadata: text("metadata", { mode: "json" }).$type<{ key: string; value: any }[]>(),
-```
-
-### Separate Tables for Each Phase
-
-Don't put all data in one table. Create a table per logical phase:
-
-```tsx
-// ❌ BAD: Everything in one table
-const workTable = sqliteTable("work", {
-  runId: text("run_id").primaryKey(),
-  plan: text("plan"),
-  implementation: text("implementation"),
-  review: text("review"),
+const planSchema = z.object({
+  taskName: z.string(),
+  prompt: z.string(),
+  filesToModify: z.array(z.string()).default([]),
 });
 
-// ✅ GOOD: One table per phase
-const planTable = sqliteTable("plan", { ... });
-const implementTable = sqliteTable("implement", { ... });
-const reviewTable = sqliteTable("review", { ... });
+const implementSchema = z.object({
+  summary: z.string(),
+  filesChanged: z.array(z.string()).default([]),
+  testsPassed: z.boolean(),
+});
+
+const { Workflow, Task, smithers, outputs } = createSmithers({
+  plan: planSchema,
+  implement: implementSchema,
+});
 ```
 
-This makes the workflow easier to reason about and resume.
-
-### Include a State Table
-
-Always include a `state` table for supervisor state keys:
-
-```sql
-CREATE TABLE IF NOT EXISTS state (
-  key TEXT PRIMARY KEY,
-  value TEXT NOT NULL,
-  updated_at TEXT DEFAULT (datetime('now'))
-);
-```
+Smithers persists task outputs for you. You should only create the extra `state` table because takopi-smithers reads that table for health and status.
 
 ## State Key Contract
 
-Your workflow **MUST** write these state keys for the supervisor to monitor it:
+Your workflow must write these state keys:
 
-### Required State Keys
+| Key | Value | When to update |
+| --- | --- | --- |
+| `supervisor.status` | `"idle"`, `"running"`, `"error"`, or `"done"` | On startup, phase changes, failures, and exit |
+| `supervisor.summary` | A concise status sentence | On every meaningful phase change |
+| `supervisor.heartbeat` | ISO timestamp | Every 30 seconds |
 
-| Key | Type | Description | Update Frequency |
-|-----|------|-------------|------------------|
-| `supervisor.status` | `"idle" \| "running" \| "error" \| "done"` | Current workflow status | On every iteration |
-| `supervisor.summary` | `string` | Human-readable summary (1-3 sentences) | On every iteration |
-| `supervisor.heartbeat` | ISO timestamp | Proves the workflow is alive | Every 30 seconds |
+Optional:
 
-### Optional State Keys
+| Key | Value |
+| --- | --- |
+| `supervisor.last_error` | Most recent failure details |
 
-| Key | Type | Description |
-|-----|------|-------------|
-| `supervisor.last_error` | `string` | Most recent error details |
+Use `heartbeatTimer.unref?.()` so the heartbeat interval does not keep a finished workflow process alive.
 
-### Best Practices
+## Resumability
 
-1. **Update status on every iteration** - The supervisor needs to know the workflow is progressing
-2. **Keep summary concise** - 1-3 sentences max, focus on current phase and progress
-3. **Update heartbeat in setInterval** - Use a 30-second interval, wrap in try-catch
-4. **Set status to "error" on failures** - Helps supervisor decide when to restart
-5. **Set status to "done" on exit** - Use `process.on("beforeExit", ...)`
-
-Example:
+Read previous outputs from `ctx.outputs` and use `skipIf` to avoid repeating completed work:
 
 ```tsx
-function updateState(key: string, value: string) {
-  try {
-    (db as any).$client.run(
-      "INSERT OR REPLACE INTO state (key, value, updated_at) VALUES (?, ?, datetime('now'))",
-      [key, value]
-    );
-  } catch (err) {
-    console.error(`Failed to update state ${key}:`, err);
-  }
-}
+export default smithers((ctx) => {
+  const research = ctx.outputs.research?.[0];
+  const implementation = ctx.outputs.implement?.[0];
 
-// Initialize
-updateState("supervisor.status", "running");
-updateState("supervisor.summary", "Workflow initialized");
-updateState("supervisor.heartbeat", new Date().toISOString());
+  return (
+    <Workflow name="resumable-example">
+      <Task id="research" output={outputs.research} agent={researchAgent} skipIf={!!research}>
+        Research the codebase.
+      </Task>
 
-// Heartbeat
-setInterval(() => {
-  try {
-    updateState("supervisor.heartbeat", new Date().toISOString());
-  } catch (err) {
-    console.error("Heartbeat failed:", err);
-  }
-}, 30000);
-
-// In workflow function
-export default smithers(db, (ctx) => {
-  updateState("supervisor.status", "running");
-  updateState("supervisor.summary", `Phase: ${currentPhase} | Progress: ${progress}`);
-
-  return <Workflow>...</Workflow>;
-});
-
-// On exit
-process.on("beforeExit", () => {
-  try {
-    updateState("supervisor.status", "done");
-    updateState("supervisor.summary", "Workflow completed successfully");
-  } catch (err) {
-    console.error("Failed to update final state:", err);
-  }
+      <Task id="implement" output={outputs.implement} agent={implementAgent} skipIf={!research || !!implementation}>
+        {`Implement this plan: ${research?.summary ?? ""}`}
+      </Task>
+    </Workflow>
+  );
 });
 ```
 
-## Error Handling Patterns
+## Testing Locally
 
-### Wrap State Updates in Try-Catch
-
-State updates should never crash your workflow:
-
-```tsx
-function updateState(key: string, value: string) {
-  try {
-    (db as any).$client.run(
-      "INSERT OR REPLACE INTO state (key, value, updated_at) VALUES (?, ?, datetime('now'))",
-      [key, value]
-    );
-  } catch (err) {
-    console.error(`Failed to update state ${key}:`, err);
-    // Don't throw - state updates should not crash the workflow
-  }
-}
-```
-
-### Log Errors to supervisor.last_error
-
-Create a helper to log errors consistently:
-
-```tsx
-function logError(error: unknown, context: string) {
-  const message = error instanceof Error ? error.message : String(error);
-  const errorDetail = `[${context}] ${message}`;
-  console.error("Workflow error:", errorDetail);
-  updateState("supervisor.last_error", errorDetail);
-  updateState("supervisor.status", "error");
-}
-```
-
-Use it:
-
-```tsx
-try {
-  // risky operation
-} catch (err) {
-  logError(err, "task execution");
-}
-```
-
-### Handle Heartbeat Failures
-
-Track consecutive heartbeat failures and log warnings:
-
-```tsx
-let heartbeatFailures = 0;
-const MAX_HEARTBEAT_FAILURES = 5;
-
-setInterval(() => {
-  try {
-    updateState("supervisor.heartbeat", new Date().toISOString());
-    heartbeatFailures = 0; // Reset on success
-  } catch (err) {
-    heartbeatFailures++;
-    console.error(`Failed to write heartbeat (attempt ${heartbeatFailures}):`, err);
-
-    if (heartbeatFailures >= MAX_HEARTBEAT_FAILURES) {
-      console.error("Heartbeat failures exceeded threshold. Workflow may be marked as hung.");
-    }
-  }
-}, 30000);
-```
-
-### Add Global Error Handlers
-
-Catch uncaught errors and update state before exiting:
-
-```tsx
-process.on("uncaughtException", (err) => {
-  logError(err, "uncaughtException");
-  console.error("Uncaught exception - workflow will restart:", err);
-  process.exit(1);
-});
-
-process.on("unhandledRejection", (reason) => {
-  logError(reason, "unhandledRejection");
-  console.error("Unhandled rejection - workflow will restart:", reason);
-  process.exit(1);
-});
-```
-
-### Use Task Retries
-
-Add `retries={N}` to tasks for transient failures:
-
-```tsx
-<Task id="my-task" output={schema.output} agent={myAgent} retries={2}>
-  Prompt here
-</Task>
-```
-
-**When to retry:**
-- Network errors
-- API rate limits
-- Temporary file locks
-
-**When NOT to retry:**
-- Logic errors in your code
-- Missing dependencies
-- Invalid configurations
-
-Fix these by updating the workflow, not adding retries.
-
-## Resumability Patterns
-
-Workflows should be fully resumable across restarts. Here's how:
-
-### Pattern 1: Idempotent Tasks
-
-Skip tasks that have already completed:
-
-```tsx
-const research = ctx.outputs.research?.[0];
-
-<Task
-  id="research"
-  output={schema.research}
-  agent={researchAgent}
-  skipIf={!!research} // Skip if already done
-  retries={2}
->
-  Analyze the codebase...
-</Task>
-```
-
-### Pattern 2: Incremental Progress
-
-Process items one at a time and track which ones are done:
-
-```tsx
-const implementations = ctx.outputs.implement ?? [];
-const endpointsToImplement = ["GET /users", "POST /users", "DELETE /users/:id"];
-const implementedEndpoints = implementations.map((i: any) => i.endpoint);
-const nextEndpoint = endpointsToImplement.find(ep => !implementedEndpoints.includes(ep));
-
-<Task
-  id="implement-endpoint"
-  output={schema.implement}
-  agent={implementAgent}
-  skipIf={!nextEndpoint} // Skip when all done
-  retries={2}
->
-  {`Implement endpoint: ${nextEndpoint}`}
-</Task>
-```
-
-### Pattern 3: Phase State Machines
-
-Compute the current phase from existing outputs:
-
-```tsx
-type Phase = "plan" | "implement" | "review" | "fix";
-
-function computePhase(plans: any[], impls: any[], reviews: any[], fixes: any[]): Phase {
-  if (plans.length === 0) return "plan";
-  if (impls.length < plans.length) return "implement";
-  if (reviews.length < plans.length) return "review";
-  const latestReview = reviews[reviews.length - 1];
-  if (latestReview?.lgtm) return "plan"; // Next task
-  return "fix";
-}
-
-const phase = computePhase(plans, impls, reviews, fixes);
-
-<Task id="plan" skipIf={phase !== "plan"} ...>
-<Task id="implement" skipIf={phase !== "implement"} ...>
-<Task id="review" skipIf={phase !== "review"} ...>
-<Task id="fix" skipIf={phase !== "fix"} ...>
-```
-
-### Pattern 4: Gated Progression
-
-Don't start the next phase until the previous one succeeds:
-
-```tsx
-const coreImplemented = ctx.outputs.implement_core?.[0];
-const coreTestsPassed = coreImplemented?.testsPassed ?? false;
-
-<Task
-  id="implement-ui"
-  output={schema.implement_ui}
-  agent={uiAgent}
-  skipIf={!coreTestsPassed || !!ctx.outputs.implement_ui?.[0]}
-  retries={2}
->
-  {coreTestsPassed
-    ? "Implement the UI..."
-    : "Blocked: Core implementation must pass tests first."}
-</Task>
-```
-
-### Pattern 5: Resume from Incomplete Executions
-
-(Advanced) Query the database for incomplete work:
-
-```tsx
-// Find incomplete runs
-const incompleteRuns = (db as any).$client
-  .query("SELECT * FROM plan WHERE run_id NOT IN (SELECT run_id FROM output)")
-  .all();
-
-if (incompleteRuns.length > 0) {
-  console.log("Resuming incomplete runs:", incompleteRuns.map(r => r.run_id));
-}
-```
-
-This pattern is rarely needed since Smithers handles it automatically via `ctx.outputs.*`.
-
-## Testing Workflows Locally
-
-### Option 1: Run with Smithers CLI
+Run the workflow directly with the same command used by the supervisor:
 
 ```bash
-# Install dependencies
-bun add smithers-orchestrator zod ai @ai-sdk/anthropic
-
-# Run the workflow
-bun --hot .smithers/workflow.tsx --input '{"specPath": "SPEC.md"}'
+bunx --bun smithers up .smithers/workflow.tsx --input '{"myInput":"hello"}'
 ```
 
-The `--hot` flag reloads the workflow when you edit it.
-
-### Option 2: Use the Supervisor
+Then inspect state:
 
 ```bash
-# Initialize
-bunx takopi-smithers init
-
-# Start the supervisor
-bunx takopi-smithers start --dry-run
-```
-
-The `--dry-run` flag starts the supervisor without Takopi, so you can test locally.
-
-### Option 3: Query the Database
-
-```bash
-# Check state
-sqlite3 .smithers/workflow.db "SELECT * FROM state;"
-
-# Check outputs
-sqlite3 .smithers/workflow.db "SELECT * FROM plan;"
-sqlite3 .smithers/workflow.db "SELECT * FROM implement;"
-```
-
-### Option 4: Check Logs
-
-```bash
-# View supervisor logs
-bunx takopi-smithers logs
-
-# Tail logs in real-time
-bunx takopi-smithers logs --follow
-
-# Show only errors
-bunx takopi-smithers logs --level error
+sqlite3 .smithers/my-workflow.db 'select key, value from state'
 ```
 
 ## Common Pitfalls
 
-### ❌ Forgetting to Update Heartbeat
+- Do not call `smithers(db, ...)`; current Smithers workflows use `createSmithers(...).smithers((ctx) => ...)`.
+- Do not import from the old `smithers` package. Use `smithers-orchestrator`.
+- Do not hand-write Smithers output tables. Define Zod schemas and pass `outputs.<name>` to tasks.
+- Keep task IDs stable across edits so persisted runs can resume predictably.
+- Update `supervisor.summary` whenever phase or progress changes.
+- Set `supervisor.status` to `"error"` and write `supervisor.last_error` when a workflow is blocked.
 
-**Problem:** Supervisor thinks the workflow is hung and kills it.
+## Examples
 
-**Solution:** Always include a 30-second heartbeat interval:
+See `examples/workflows/` for complete templates:
 
-```tsx
-setInterval(() => {
-  try {
-    updateState("supervisor.heartbeat", new Date().toISOString());
-  } catch (err) {
-    console.error("Heartbeat failed:", err);
-  }
-}, 30000);
-```
-
-### ❌ Not Wrapping State Updates in Try-Catch
-
-**Problem:** SQLite errors crash the entire workflow.
-
-**Solution:** Wrap all `updateState()` calls in try-catch:
-
-```tsx
-function updateState(key: string, value: string) {
-  try {
-    (db as any).$client.run(...);
-  } catch (err) {
-    console.error(`Failed to update state ${key}:`, err);
-  }
-}
-```
-
-### ❌ Using Relative Paths for Database
-
-**Problem:** `drizzle("workflow.db")` creates the DB in the current working directory, which changes.
-
-**Solution:** Use absolute paths or paths relative to `.smithers/`:
-
-```tsx
-// ✅ GOOD
-export const db = drizzle(".smithers/workflow.db", { schema });
-
-// ❌ BAD
-export const db = drizzle("workflow.db", { schema });
-```
-
-### ❌ Not Handling Agent Failures
-
-**Problem:** Agent returns invalid JSON and workflow crashes.
-
-**Solution:** Add `retries={2}` to tasks and validate outputs:
-
-```tsx
-<Task id="my-task" output={schema.output} agent={myAgent} retries={2}>
-  Prompt
-</Task>
-```
-
-### ❌ Re-executing Completed Work
-
-**Problem:** Workflow restarts and re-runs everything from scratch.
-
-**Solution:** Use `skipIf` to avoid re-executing completed tasks:
-
-```tsx
-const research = ctx.outputs.research?.[0];
-
-<Task id="research" output={schema.research} agent={researchAgent} skipIf={!!research}>
-```
-
-### ❌ Not Using Composite Primary Keys
-
-**Problem:** Smithers can't track iterations of the same task.
-
-**Solution:** Use composite primary keys with `iteration`:
-
-```tsx
-const taskTable = sqliteTable(
-  "task",
-  {
-    runId: text("run_id").notNull(),
-    nodeId: text("node_id").notNull(),
-    iteration: integer("iteration").notNull().default(0),
-    data: text("data").notNull(),
-  },
-  (t) => ({ pk: primaryKey({ columns: [t.runId, t.nodeId, t.iteration] }) })
-);
-```
-
-### ❌ Infinite Loops
-
-**Problem:** Ralph loop never terminates.
-
-**Solution:** Set `maxIterations` and use `onMaxReached="return-last"`:
-
-```tsx
-<Ralph until={false} maxIterations={200} onMaxReached="return-last">
-  ...
-</Ralph>
-```
-
-### ❌ Not Testing Locally Before Deployment
-
-**Problem:** Workflow crashes in production and you have to debug via Telegram.
-
-**Solution:** Always test locally first:
-
-```bash
-bun --hot .smithers/workflow.tsx --input '{"specPath": "SPEC.md"}'
-```
-
-## Example Workflows
-
-See the `examples/workflows/` directory for complete, production-ready examples:
-
-1. **`api-builder.tsx`** - Build REST API endpoints with tests
-   - Demonstrates: Sequential tasks, idempotent design, incremental progress
-
-2. **`refactor-codebase.tsx`** - Systematic refactoring workflow
-   - Demonstrates: Parallel tasks, rollback patterns, progressive refactoring
-
-3. **`feature-implementation.tsx`** - Multi-step feature with validation
-   - Demonstrates: Gated progression, validation checkpoints, comprehensive testing
-
-Each example includes inline comments explaining the patterns used.
-
-## Further Reading
-
-- [Smithers Documentation](https://smithers.sh)
-- [takopi-smithers README](../README.md)
-- [Troubleshooting Guide](./troubleshooting.md)
-- [Worktree Support](./worktrees.md)
+- `api-builder.tsx`
+- `refactor-codebase.tsx`
+- `feature-implementation.tsx`
+- `data-pipeline.tsx`
+- `testing-automation.tsx`
+- `basic-ci-cd.tsx`

@@ -1,4 +1,4 @@
-import { test, expect, mock, beforeEach, afterEach, describe } from 'bun:test';
+import { test, expect, beforeEach, afterEach, describe } from 'bun:test';
 import { Supervisor } from './supervisor';
 import type { Config } from './config';
 import * as fs from 'node:fs';
@@ -53,7 +53,7 @@ describe('Supervisor file watcher', () => {
     // Cleanup temp directory
     try {
       await fs.promises.rm(testDir, { recursive: true, force: true });
-    } catch (error) {
+    } catch {
       // Ignore cleanup errors
     }
   });

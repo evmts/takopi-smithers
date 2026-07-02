@@ -68,11 +68,7 @@ export async function createTestHarness(options: TestHarnessOptions = {}): Promi
       type: 'module',
       dependencies: {
         'smithers-orchestrator': '*',
-        'react': '*',
-        'drizzle-orm': '*',
         'zod': '*',
-        'ai': '*',
-        '@ai-sdk/anthropic': '*',
       },
     };
     await writeFile(join(testPath, 'package.json'), JSON.stringify(pkg, null, 2));
@@ -404,38 +400,34 @@ export class MockAutoHealAdapter {
 
   private generateFixedWorkflow(context: any): string {
     // Generate a minimal working workflow
-    return `import { smithers, Workflow, Task, ClaudeCodeAgent } from "smithers-orchestrator";
-import { drizzle } from "drizzle-orm/bun-sqlite";
-import { sqliteTable, text, primaryKey } from "drizzle-orm/sqlite-core";
+    return `import { createSmithers, ClaudeCodeAgent } from "smithers-orchestrator";
+import { z } from "zod";
 
-const outputTable = sqliteTable(
-  "output",
-  {
-    runId: text("run_id").notNull(),
-    nodeId: text("node_id").notNull(),
-    result: text("result").notNull(),
-  },
-  (t) => ({ pk: primaryKey({ columns: [t.runId, t.nodeId] }) })
+const outputSchema = z.object({
+  result: z.string(),
+});
+
+const { Workflow, Task, smithers, outputs, db } = createSmithers(
+  { output: outputSchema },
+  { dbPath: ".smithers/workflow.db" }
 );
 
-export const schema = { output: outputTable };
-export const db = drizzle(".smithers/workflow.db", { schema });
+const sqlite = (db as any).$client as {
+  exec: (sql: string) => unknown;
+  run: (sql: string, params?: unknown[]) => unknown;
+};
 
-(db as any).$client.exec(\`
-  CREATE TABLE IF NOT EXISTS output (
-    run_id TEXT NOT NULL, node_id TEXT NOT NULL,
-    result TEXT NOT NULL,
-    PRIMARY KEY (run_id, node_id)
-  );
-  CREATE TABLE IF NOT EXISTS state (
-    key TEXT PRIMARY KEY, value TEXT NOT NULL,
-    updated_at TEXT DEFAULT (datetime('now'))
-  );
-\`);
+sqlite.exec([
+  "CREATE TABLE IF NOT EXISTS state (",
+  "  key TEXT PRIMARY KEY,",
+  "  value TEXT NOT NULL,",
+  "  updated_at TEXT DEFAULT (datetime('now'))",
+  ")",
+].join("\\n"));
 
 function updateState(key: string, value: string) {
   try {
-    (db as any).$client.run(
+    sqlite.run(
       "INSERT OR REPLACE INTO state (key, value, updated_at) VALUES (?, ?, datetime('now'))",
       [key, value]
     );
@@ -448,26 +440,27 @@ updateState("supervisor.status", "running");
 updateState("supervisor.summary", "Auto-healed workflow");
 updateState("supervisor.heartbeat", new Date().toISOString());
 
-setInterval(() => {
+const heartbeatTimer = setInterval(() => {
   try {
     updateState("supervisor.heartbeat", new Date().toISOString());
   } catch (err) {
     console.error("Heartbeat failed:", err);
   }
 }, 30000);
+heartbeatTimer.unref?.();
 
 const agent = new ClaudeCodeAgent({
   model: "sonnet",
   env: { ANTHROPIC_API_KEY: "" },
 });
 
-export default smithers(db, (ctx) => {
+export default smithers(() => {
   updateState("supervisor.status", "running");
   updateState("supervisor.summary", "Fixed workflow running");
 
   return (
     <Workflow name="fixed-workflow">
-      <Task id="fixed-task" output={schema.output} agent={agent}>
+      <Task id="fixed-task" output={outputs.output} agent={agent}>
         This is a fixed workflow after auto-heal.
       </Task>
     </Workflow>

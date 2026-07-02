@@ -20,6 +20,9 @@ export class Supervisor {
   private workflowWatcher: ReturnType<typeof fs.watch> | null = null;
   private workflowRestartDebounceTimer: Timer | null = null;
   private isHandlingHang = false;
+  private isStopping = false;
+  private suppressNextSmithersExit = false;
+  private smithersGeneration = 0;
   private startTime: number = 0;
 
   constructor(config: Config, dryRun: boolean = false) {
@@ -52,6 +55,8 @@ export class Supervisor {
 
   async start(): Promise<void> {
     await log("Starting supervisor...");
+
+    this.isStopping = false;
 
     // Track start time
     this.startTime = Date.now();
@@ -117,10 +122,12 @@ export class Supervisor {
 
     await log("Starting Smithers workflow...");
 
-    const args = ["bunx", "smithers", "run", this.config.workflow.script];
+    const args = ["bunx", "--bun", "smithers", "up", this.config.workflow.script];
     if (this.config.workflow.input) {
       args.push("--input", JSON.stringify(this.config.workflow.input));
     }
+
+    const generation = ++this.smithersGeneration;
 
     this.smithersProc = Bun.spawn(
       args,
@@ -134,8 +141,12 @@ export class Supervisor {
             `Smithers exited with code ${exitCode}, signal ${signalCode}`,
             "error"
           );
-          // Auto-restart logic (Milestone 2)
-          await this.handleSmithersExit(exitCode, signalCode);
+          if (this.isStopping || this.suppressNextSmithersExit) {
+            this.suppressNextSmithersExit = false;
+            return;
+          }
+
+          await this.handleSmithersExit(exitCode, signalCode, generation);
         },
       }
     );
@@ -145,8 +156,13 @@ export class Supervisor {
 
   private async handleSmithersExit(
     exitCode: number | null,
-    signalCode: number | null
+    signalCode: number | null,
+    generation: number
   ): Promise<void> {
+    if (this.isStopping || generation !== this.smithersGeneration) {
+      return;
+    }
+
     // Log whether this was a crash or a hang
     const wasHung = this.isHandlingHang;
     if (wasHung) {
@@ -216,6 +232,10 @@ export class Supervisor {
 
     await new Promise((resolve) => setTimeout(resolve, delaySec * 1000));
 
+    if (this.isStopping || generation !== this.smithersGeneration) {
+      return;
+    }
+
     this.restartAttempts++;
     this.persistRestartCount();
     await this.startSmithers();
@@ -223,28 +243,26 @@ export class Supervisor {
 
   private persistRestartCount(): void {
     try {
-      const { Database } = require("bun:sqlite");
       const db = new Database(this.config.workflow.db);
       db.run(
         "INSERT OR REPLACE INTO state (key, value) VALUES (?, ?)",
         ["supervisor.restart_count", this.restartAttempts.toString()]
       );
       db.close();
-    } catch (error) {
+    } catch {
       // Silently fail - this is just for metrics
     }
   }
 
   private persistAutoHealCount(): void {
     try {
-      const { Database } = require("bun:sqlite");
       const db = new Database(this.config.workflow.db);
       db.run(
         "INSERT OR REPLACE INTO state (key, value) VALUES (?, ?)",
         ["supervisor.autoheal_count", this.autoHealAttempts.toString()]
       );
       db.close();
-    } catch (error) {
+    } catch {
       // Silently fail - this is just for metrics
     }
   }
@@ -294,6 +312,7 @@ export class Supervisor {
 
       // Kill existing process
       if (this.smithersProc && this.smithersProc.exitCode === null) {
+        this.suppressNextSmithersExit = true;
         this.smithersProc.kill();
         await this.smithersProc.exited;
       }
@@ -470,6 +489,7 @@ export class Supervisor {
     await log("Restarting Smithers workflow...");
 
     if (this.smithersProc && this.smithersProc.exitCode === null) {
+      this.suppressNextSmithersExit = true;
       this.smithersProc.kill();
       await this.smithersProc.exited;
     }
@@ -482,6 +502,8 @@ export class Supervisor {
 
   async stop(keepTakopi: boolean = false): Promise<void> {
     await log("Stopping supervisor...");
+
+    this.isStopping = true;
 
     // Clear intervals
     if (this.updateInterval) clearInterval(this.updateInterval);
@@ -497,6 +519,7 @@ export class Supervisor {
     // Kill Smithers subprocess
     if (this.smithersProc && this.smithersProc.exitCode === null) {
       await log("Stopping Smithers...");
+      this.suppressNextSmithersExit = true;
       this.smithersProc.kill();
       await this.smithersProc.exited;
     }

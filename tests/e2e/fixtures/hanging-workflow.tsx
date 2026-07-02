@@ -1,66 +1,47 @@
-import { smithers, Workflow, Task } from "smithers";
-import { drizzle } from "drizzle-orm/bun-sqlite";
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
-import { Database } from "bun:sqlite";
+import { createSmithers } from "smithers-orchestrator";
+import { z } from "zod";
 
-// Define a simple schema
-const testTable = sqliteTable("test", {
-  id: integer("id").primaryKey(),
-  message: text("message").notNull(),
+const testSchema = z.object({
+  message: z.string(),
 });
 
-// State table for supervisor integration
-const stateTable = sqliteTable("state", {
-  key: text("key").primaryKey(),
-  value: text("value").notNull(),
-});
+const { Workflow, Task, smithers, outputs, db } = createSmithers(
+  { test: testSchema },
+  { dbPath: ".smithers/workflow.db" }
+);
 
-export const schema = {
-  test: testTable,
-  state: stateTable,
+const sqlite = (db as any).$client as {
+  exec: (sql: string) => unknown;
+  run: (sql: string, params?: unknown[]) => unknown;
 };
 
-// Initialize Smithers with DB connection
-const db = drizzle("file:.smithers/workflow.db", { schema });
+sqlite.exec([
+  "CREATE TABLE IF NOT EXISTS state (",
+  "  key TEXT PRIMARY KEY,",
+  "  value TEXT NOT NULL,",
+  "  updated_at TEXT DEFAULT (datetime('now'))",
+  ")",
+].join("\n"));
 
-// Define a workflow that hangs after writing heartbeat once
-export default smithers(
-  <Workflow
-    name="Hanging Test Workflow"
-    db={db}
-    onStart={async (ctx) => {
-      // Ensure state table exists (smithers may not create it automatically)
-      const sqlite = new Database(".smithers/workflow.db");
-      sqlite.run(`
-        CREATE TABLE IF NOT EXISTS state (
-          key TEXT PRIMARY KEY,
-          value TEXT NOT NULL
-        )
-      `);
-      sqlite.close();
+function updateState(key: string, value: string) {
+  sqlite.run(
+    "INSERT OR REPLACE INTO state (key, value, updated_at) VALUES (?, ?, datetime('now'))",
+    [key, value]
+  );
+}
 
-      // Write initial heartbeat and status using drizzle
-      await ctx.db.execute(
-        ctx.db.$sql`INSERT OR REPLACE INTO state (key, value)
-         VALUES ('supervisor.heartbeat', datetime('now')),
-                ('supervisor.status', 'running'),
-                ('supervisor.summary', 'Workflow is about to hang')
-        `
-      );
-    }}
-  >
-    <Task id="hang-forever" output={schema.test}>
-      {async (ctx) => {
-        console.log('Task started, entering infinite loop to simulate hang...');
+updateState("supervisor.status", "running");
+updateState("supervisor.summary", "Workflow is about to hang");
+updateState("supervisor.heartbeat", new Date().toISOString());
 
-        // Hang forever - no more heartbeat updates
+export default smithers(() => (
+  <Workflow name="hanging-test-workflow">
+    <Task id="hang-forever" output={outputs.test}>
+      {async () => {
         while (true) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
-
-        // This line never executes
-        return { id: 1, message: 'unreachable' };
       }}
     </Task>
   </Workflow>
-);
+));

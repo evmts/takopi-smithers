@@ -248,11 +248,11 @@ describe('Complete Lifecycle E2E Tests', () => {
 
     // Inject a workflow that doesn't update heartbeat (simulates hang)
     const hangingWorkflow = `
-import { drizzle } from "drizzle-orm/bun-sqlite";
-const db = drizzle(".smithers/workflow.db", { schema: {} });
+import Database from "bun:sqlite";
+const db = new Database(".smithers/workflow.db");
 
 // Create state table but don't update heartbeat
-(db as any).$client.exec(\`
+db.exec(\`
   CREATE TABLE IF NOT EXISTS state (
     key TEXT PRIMARY KEY, value TEXT NOT NULL,
     updated_at TEXT DEFAULT (datetime('now'))
@@ -260,7 +260,7 @@ const db = drizzle(".smithers/workflow.db", { schema: {} });
 \`);
 
 function updateState(key: string, value: string) {
-  (db as any).$client.run(
+  db.run(
     "INSERT OR REPLACE INTO state (key, value, updated_at) VALUES (?, ?, datetime('now'))",
     [key, value]
   );
@@ -333,12 +333,12 @@ await new Promise(() => {});
 
     // Without init - should fail some checks
     const doctorBeforeInit = await harness.runDoctor();
-    expect(doctorBeforeInit.stdout).toContain('takopi-smithers doctor');
+    expect(doctorBeforeInit.stdout).toContain('takopi-smithers diagnostics');
 
     // After init - should pass more checks
     await harness.runInit();
     const doctorAfterInit = await harness.runDoctor();
-    expect(doctorAfterInit.stdout).toContain('takopi-smithers doctor');
+    expect(doctorAfterInit.stdout).toContain('takopi-smithers diagnostics');
 
     console.log('✓ Doctor command runs successfully');
   }, 30000);

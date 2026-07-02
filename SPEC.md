@@ -75,7 +75,7 @@ bunx takopi-smithers@latest start
    └──────────────────────┘
 
    ┌──────────────────────────────┐
-   │ smithers workflow runner      │  bunx smithers-orchestrator
+   │ smithers workflow runner      │  bunx --bun smithers up
    │ (TSX React plan, SQLite DB)   │
    └──────────┬───────────────────┘
               │ writes state/frames/artifacts
@@ -196,7 +196,7 @@ Takopi’s own config lives at `~/.takopi/takopi.toml` and includes `default_eng
 1. **Start/stop subprocesses**
 
    - `takopi` subprocess in repo root
-   - `bunx smithers-orchestrator .smithers/workflow.tsx` subprocess in repo root ([Smithers][2])
+   - `bunx --bun smithers up .smithers/workflow.tsx` subprocess in repo root ([Smithers][2])
 
 2. **Cron updates**
 
@@ -447,7 +447,7 @@ Edit `.takopi-smithers/config.toml`:
 - `takopi-smithers start` runs:
 
   1. `takopi` (Telegram bridge)
-  2. `bunx smithers-orchestrator .smithers/workflow.tsx` (your workflow)
+  2. `bunx --bun smithers up .smithers/workflow.tsx` (your workflow)
   3. supervisor loop (updates + health + restart/heal)
 
 Smithers state persists in SQLite and can resume incomplete executions after restart.
@@ -572,7 +572,7 @@ Implement: “if `.takopi-smithers/config.toml` doesn’t specify token/chat, re
 
 ## 2) Smithers runner invocation
 
-Smithers docs show typical workflow code and the `bunx smithers-orchestrator <script>` execution pattern. ([Smithers][2])
+Smithers docs show typical workflow code and the `bunx --bun smithers up <script>` execution pattern. ([Smithers][2])
 
 ## 3) SQLite querying
 

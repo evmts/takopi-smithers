@@ -19,7 +19,7 @@ This document describes the internal architecture, process model, and state mana
    └──────────────────────┘
 
    ┌──────────────────────────────┐
-   │ smithers workflow runner      │  bunx smithers-orchestrator
+   │ smithers workflow runner      │  bunx --bun smithers up
    │ (TSX React plan, SQLite DB)   │
    └──────────┬───────────────────┘
               │ writes state/frames/artifacts
@@ -41,7 +41,7 @@ This document describes the internal architecture, process model, and state mana
 1. **Startup** (`takopi-smithers start`):
    - Supervisor process starts
    - Spawns Takopi subprocess (`takopi` CLI)
-   - Spawns Smithers subprocess (`bunx smithers-orchestrator .smithers/workflow.tsx`)
+   - Spawns Smithers subprocess (`bunx --bun smithers up .smithers/workflow.tsx`)
    - Starts file watcher on workflow.tsx
    - Starts health check loop (every 10s)
    - Starts update cron (every 10min default)
@@ -78,16 +78,29 @@ The supervisor and workflow communicate via SQLite state keys:
 In the workflow (`.smithers/workflow.tsx`):
 
 ```tsx
-import { db } from 'smithers';
+import { createSmithers } from "smithers-orchestrator";
+
+const { db } = createSmithers(
+  { /* schemas */ },
+  { dbPath: ".smithers/workflow.db" }
+);
+
+const sqlite = (db as any).$client;
 
 // Update heartbeat every 30s
-setInterval(() => {
-  db.state.set('supervisor.heartbeat', new Date().toISOString());
+const heartbeatTimer = setInterval(() => {
+  sqlite.run(
+    "INSERT OR REPLACE INTO state (key, value, updated_at) VALUES (?, ?, datetime('now'))",
+    ["supervisor.heartbeat", new Date().toISOString()]
+  );
 }, 30000);
+heartbeatTimer.unref?.();
 
 // Update status and summary as workflow progresses
-db.state.set('supervisor.status', 'running');
-db.state.set('supervisor.summary', 'Processing phase 2 of 5: data validation');
+sqlite.run(
+  "INSERT OR REPLACE INTO state (key, value, updated_at) VALUES (?, ?, datetime('now'))",
+  ["supervisor.status", "running"]
+);
 ```
 
 In the supervisor (`src/lib/db.ts`):
@@ -306,21 +319,20 @@ No process isolation beyond standard OS user permissions. This is a single-user,
 
 ## Resumability
 
-Smithers workflows can resume after crash via:
+Smithers workflows resume from persisted task outputs. Use `ctx.outputs` and `skipIf` to avoid repeating completed work:
 
 ```tsx
-import { db } from 'smithers';
+export default smithers((ctx) => {
+  const plan = ctx.outputs.plan?.[0];
 
-// Check for incomplete execution
-const incomplete = db.execution.findIncomplete();
-
-if (incomplete) {
-  // Resume from last checkpoint
-  // ...
-} else {
-  // Start new execution
-  // ...
-}
+  return (
+    <Workflow name="resumable">
+      <Task id="plan" output={outputs.plan} skipIf={!!plan}>
+        Plan the next step.
+      </Task>
+    </Workflow>
+  );
+});
 ```
 
 The workflow template created by `takopi-smithers init` includes this pattern.

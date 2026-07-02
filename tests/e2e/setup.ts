@@ -23,9 +23,8 @@ export async function createTestRepo(options?: { installDeps?: boolean }): Promi
     name: 'test-repo',
     version: '1.0.0',
     dependencies: {
-      smithers: '*',
-      react: '*',
-      'drizzle-orm': '*',
+      'smithers-orchestrator': '*',
+      'zod': '*',
     },
   };
   await Bun.write(join(testPath, 'package.json'), JSON.stringify(pkg, null, 2));

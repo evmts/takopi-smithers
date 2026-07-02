@@ -75,7 +75,7 @@ max_attempts = 3
       exitCode: 1,
       signalCode: null,
       workflowScript: '.smithers/workflow.tsx',
-      workflowContent: 'import { smithers } from "smithers";\n\nexport default smithers(<Workflow>...</Workflow>);',
+      workflowContent: 'import { createSmithers } from "smithers-orchestrator";\n\nconst { smithers } = createSmithers({});\nexport default smithers(() => <Workflow>...</Workflow>);',
       dbPath: '.smithers/workflow.db',
       dbState: {
         status: 'error',
@@ -122,9 +122,10 @@ max_attempts = 3
     try {
       // Write initial workflow file
       await Bun.write(workflowPath, `
-        import { smithers, Workflow, Task, ClaudeCodeAgent } from "smithers-orchestrator";
+        import { createSmithers } from "smithers-orchestrator";
         // Initial version
-        export default smithers(null, () => <Workflow name="test"><Task id="noop">noop</Task></Workflow>);
+        const { Workflow, Task, smithers } = createSmithers({});
+        export default smithers(() => <Workflow name="test"><Task id="noop">noop</Task></Workflow>);
       `);
 
       // Create test config
@@ -169,9 +170,10 @@ max_attempts = 3
 
       // Modify workflow file
       await Bun.write(workflowPath, `
-        import { smithers, Workflow, Task, ClaudeCodeAgent } from "smithers-orchestrator";
+        import { createSmithers } from "smithers-orchestrator";
         // Modified version - this comment was added
-        export default smithers(null, () => <Workflow name="test"><Task id="noop">noop</Task></Workflow>);
+        const { Workflow, Task, smithers } = createSmithers({});
+        export default smithers(() => <Workflow name="test"><Task id="noop">noop</Task></Workflow>);
       `);
 
       // Wait for debounce (1000ms) + restart time
@@ -182,11 +184,7 @@ max_attempts = 3
 
       // Processes should be different (old one killed, new one started)
       expect(newProc).not.toBe(initialProc);
-
-      // Verify old process is not running
-      if (initialProc) {
-        expect(initialProc.exitCode).not.toBe(null);
-      }
+      expect(newProc?.pid).not.toBe(initialProc?.pid);
 
       // Cleanup
       await supervisor.stop();

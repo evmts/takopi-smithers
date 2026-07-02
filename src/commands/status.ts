@@ -6,7 +6,7 @@ import {
   formatHeartbeatAge,
   getWorkflowProgress,
 } from "../lib/db";
-import { getPidFilePath, readPidFile, getAllWorktreePidFiles } from "../lib/pid";
+import { getPidFilePath, readPidFile } from "../lib/pid";
 import { listWorktrees, getWorktreeConfigPath } from "../lib/worktree";
 import * as fs from "node:fs";
 

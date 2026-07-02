@@ -111,7 +111,7 @@ async function pauseAllWorktrees(): Promise<void> {
   const pausedWorktrees: string[] = [];
   let runningCount = 0;
 
-  for (const { worktree, pidPath, pid } of pidFiles) {
+  for (const { worktree, pid } of pidFiles) {
     if (!pid) {
       continue; // Skip worktrees with no running supervisor
     }

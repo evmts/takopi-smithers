@@ -122,13 +122,14 @@ test("workflow.tsx uses multi-phase smithers workflow pattern", async () => {
   // Check for smithers-orchestrator imports
   expect(workflowContent).toContain('from "smithers-orchestrator"');
   expect(workflowContent).toContain("ClaudeCodeAgent");
-  expect(workflowContent).toContain("drizzle-orm");
+  expect(workflowContent).toContain("createSmithers");
+  expect(workflowContent).toContain('from "zod"');
 
-  // Check for multi-phase schema tables
-  expect(workflowContent).toContain("planTable");
-  expect(workflowContent).toContain("implementTable");
-  expect(workflowContent).toContain("reviewTable");
-  expect(workflowContent).toContain("fixTable");
+  // Check for multi-phase output schemas
+  expect(workflowContent).toContain("planOutputSchema");
+  expect(workflowContent).toContain("implementOutputSchema");
+  expect(workflowContent).toContain("reviewOutputSchema");
+  expect(workflowContent).toContain("fixOutputSchema");
 
   // Check for state table creation
   expect(workflowContent).toContain("CREATE TABLE IF NOT EXISTS state");
@@ -136,8 +137,9 @@ test("workflow.tsx uses multi-phase smithers workflow pattern", async () => {
   // Check for updateState helper
   expect(workflowContent).toContain("function updateState");
 
-  // Check for workflow export with db
-  expect(workflowContent).toContain("export default smithers(db,");
+  // Check for schema-driven task outputs and workflow export
+  expect(workflowContent).toContain("output={outputs.plan}");
+  expect(workflowContent).toContain("export default smithers((ctx) =>");
 
   // Check for phase state machine
   expect(workflowContent).toContain("computePhase");

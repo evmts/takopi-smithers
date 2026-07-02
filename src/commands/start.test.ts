@@ -1,6 +1,4 @@
-import { test, expect, describe, mock, beforeEach, afterEach } from 'bun:test';
-import { start } from './start';
-import * as path from 'node:path';
+import { test, expect, describe, mock, beforeEach } from 'bun:test';
 
 // Mock modules
 const mockListWorktrees = mock(() => Promise.resolve([]));
@@ -19,7 +17,7 @@ const mockSpawn = mock(() => ({
 }));
 
 // Mock Bun.file
-const mockBunFile = mock((path: string) => ({
+const mockBunFile = mock((_path: string) => ({
   exists: () => Promise.resolve(true),
 }));
 

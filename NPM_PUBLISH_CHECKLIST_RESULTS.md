@@ -48,10 +48,8 @@ All files in package.json "files" array exist:
 **Runtime Dependencies:**
 - `@babel/runtime`: ^7.28.6
 - `@iarna/toml`: ^2.2.5
-- `drizzle-orm`: ^0.45.1
 - `react-dom`: ^19.2.4 (needed for Smithers)
-- `smithers`: ^0.5.4
-- `smithers-orchestrator`: ^0.5.0
+- `smithers-orchestrator`: 0.26.1
 - `zod`: ^4.3.6
 
 **Peer Dependencies:**

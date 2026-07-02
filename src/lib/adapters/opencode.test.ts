@@ -9,7 +9,7 @@ describe('OpenCodeAdapter', () => {
   });
 
   test('should save prompt to file for debugging', async () => {
-    const adapter = new OpenCodeAdapter();
+    const adapter = new OpenCodeAdapter('__takopi_missing_opencode__', 1_000);
     const context: AutoHealContext = {
       exitCode: 1,
       signalCode: null,
@@ -28,20 +28,20 @@ describe('OpenCodeAdapter', () => {
 
     const testPrompt = 'Test auto-heal prompt for OpenCode';
 
-    // This will fail because opencode isn't installed, but should save the prompt
+    // This uses a missing command on purpose, but should still save the prompt.
     const result = await adapter.invoke(testPrompt, '.smithers/workflow.tsx', context);
 
     // Verify prompt was saved
     const savedPrompt = await Bun.file('.takopi-smithers/autoheal-prompt-opencode.txt').text();
     expect(savedPrompt).toBe(testPrompt);
 
-    // Should fail (opencode command not found in test env)
+    // Should fail because the configured command does not exist.
     expect(result.success).toBe(false);
     expect(result.error).toBeDefined();
   });
 
   test('should handle missing opencode command gracefully', async () => {
-    const adapter = new OpenCodeAdapter();
+    const adapter = new OpenCodeAdapter('__takopi_missing_opencode__', 1_000);
     const context: AutoHealContext = {
       exitCode: 1,
       signalCode: null,

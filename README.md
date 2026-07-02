@@ -118,7 +118,7 @@ db = ".smithers/workflow.db"
 input = { specPath = "SPEC.md" }
 ```
 
-This gets passed as `--input '{"specPath":"SPEC.md"}'` to `smithers run` and is available as `ctx.input.specPath` in your workflow.
+This gets passed as `--input '{"specPath":"SPEC.md"}'` to `smithers up` and is available as `ctx.input.specPath` in your workflow.
 
 ### Step 8: Verify everything works
 
@@ -138,7 +138,7 @@ bunx takopi-smithers start
 
 This launches three things:
 1. **Takopi** -- Telegram bridge (lets you message the agent from your phone)
-2. **Smithers** -- your workflow (`smithers run .smithers/workflow.tsx`)
+2. **Smithers** -- your workflow (`smithers up .smithers/workflow.tsx`)
 3. **Supervisor** -- monitors health, posts status updates every 10min, auto-restarts on crash
 
 Open Telegram and message your bot. The supervisor will post periodic status updates automatically.
@@ -366,12 +366,17 @@ See `docs/workflow-authoring.md` for a complete guide to writing production-read
 Quick example:
 
 ```tsx
-import { smithers, Workflow, Task, ClaudeCodeAgent } from "smithers-orchestrator";
-import { drizzle } from "drizzle-orm/bun-sqlite";
+import { createSmithers, ClaudeCodeAgent } from "smithers-orchestrator";
+import { z } from "zod";
 
-// 1. Define schema
-const schema = { /* your tables */ };
-const db = drizzle(".smithers/workflow.db", { schema });
+// 1. Define schemas and let Smithers own workflow storage
+const outputSchema = z.object({ result: z.string() });
+const { Workflow, Task, smithers, outputs, db } = createSmithers(
+  { output: outputSchema },
+  { dbPath: ".smithers/workflow.db" }
+);
+
+const sqlite = (db as any).$client;
 
 // 2. Update supervisor state
 function updateState(key: string, value: string) { /* ... */ }
@@ -382,9 +387,9 @@ updateState("supervisor.heartbeat", new Date().toISOString());
 const agent = new ClaudeCodeAgent({ model: "sonnet", env: { ANTHROPIC_API_KEY: "" } });
 
 // 4. Define workflow
-export default smithers(db, (ctx) => (
+export default smithers(() => (
   <Workflow name="my-workflow">
-    <Task id="my-task" output={schema.output} agent={agent}>
+    <Task id="my-task" output={outputs.output} agent={agent}>
       Your prompt here
     </Task>
   </Workflow>

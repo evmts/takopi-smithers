@@ -18,7 +18,7 @@ async function restartAllWorktrees(): Promise<void> {
   const restartedWorktrees: string[] = [];
   let runningCount = 0;
 
-  for (const { worktree, pidPath, pid } of pidFiles) {
+  for (const { worktree, pid } of pidFiles) {
     if (!pid) {
       continue; // Skip worktrees with no running supervisor
     }

@@ -19,7 +19,7 @@ async function stopAllWorktrees(keepTakopi: boolean): Promise<void> {
   const stoppedWorktrees: string[] = [];
   let runningCount = 0;
 
-  for (const { worktree, pidPath, pid } of pidFiles) {
+  for (const { worktree, pid } of pidFiles) {
     if (!pid) {
       continue; // Skip worktrees with no running supervisor
     }

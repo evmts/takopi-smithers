@@ -11,6 +11,11 @@ import { log } from '../logger';
 export class OpenCodeAdapter implements AutoHealAdapter {
   name = 'opencode';
 
+  constructor(
+    private readonly command: string = process.env.TAKOPI_SMITHERS_OPENCODE_COMMAND ?? 'opencode',
+    private readonly timeoutMs: number = 60_000
+  ) {}
+
   async invoke(
     prompt: string,
     workflowScript: string,
@@ -26,7 +31,7 @@ export class OpenCodeAdapter implements AutoHealAdapter {
       // Invoke OpenCode in non-interactive mode with quiet flag
       // OpenCode's -p flag accepts the prompt, -q disables spinner
       const proc = Bun.spawn(
-        ['opencode', '-p', prompt, '-q'],
+        [this.command, '-p', prompt, '-q'],
         {
           cwd: process.cwd(),
           stdout: 'pipe',
@@ -35,13 +40,29 @@ export class OpenCodeAdapter implements AutoHealAdapter {
         }
       );
 
+      let timedOut = false;
+      const timeout = setTimeout(() => {
+        timedOut = true;
+        proc.kill();
+      }, this.timeoutMs);
+
       const exitCode = await proc.exited;
+      clearTimeout(timeout);
+
       const stdout = await new Response(proc.stdout).text();
       const stderr = await new Response(proc.stderr).text();
 
       await log(`OpenCode exited with code ${exitCode}`);
       await log(`OpenCode stdout: ${stdout.slice(0, 500)}`);
       if (stderr) await log(`OpenCode stderr: ${stderr.slice(0, 500)}`, 'warn');
+
+      if (timedOut) {
+        return {
+          success: false,
+          error: `OpenCode timed out after ${this.timeoutMs}ms`,
+          agentOutput: stdout + '\n' + stderr,
+        };
+      }
 
       if (exitCode !== 0) {
         return {

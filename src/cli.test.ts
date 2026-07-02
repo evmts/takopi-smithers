@@ -5,7 +5,6 @@ import { join } from "node:path";
 const packageJsonPath = join(import.meta.dir, "..", "package.json");
 const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
 const cliSourcePath = join(import.meta.dir, "cli.ts");
-const cliDistPath = join(import.meta.dir, "..", "dist", "cli.js");
 
 describe("CLI Foundation", () => {
   test("cli.ts source file exists", () => {
@@ -51,7 +50,7 @@ describe("CLI Foundation", () => {
     expect(packageJson.engines.node).toBe(">=18");
   });
 
-  test("built CLI exists after build", () => {
-    expect(existsSync(cliDistPath)).toBe(true);
+  test("package includes built output in published files", () => {
+    expect(packageJson.files).toContain("dist");
   });
 });

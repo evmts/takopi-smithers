@@ -198,65 +198,41 @@ async function getExampleWorkflow(filename: string): Promise<string> {
 }
 
 function getMinimalTemplate(): string {
-  return `import { smithers, Workflow, Task, ClaudeCodeAgent } from "smithers-orchestrator";
-import { drizzle } from "drizzle-orm/bun-sqlite";
-import { sqliteTable, text, primaryKey } from "drizzle-orm/sqlite-core";
+  return `import { createSmithers, ClaudeCodeAgent } from "smithers-orchestrator";
+import { z } from "zod";
 
-// ---------------------------------------------------------------------------
-// Schema - Define your tables here
-// ---------------------------------------------------------------------------
-
-const inputTable = sqliteTable("input", {
-  runId: text("run_id").primaryKey(),
-  // Add your input fields here
+const outputSchema = z.object({
+  result: z.string(),
 });
 
-const outputTable = sqliteTable(
-  "output",
+const { Workflow, Task, smithers, outputs, db } = createSmithers(
   {
-    runId: text("run_id").notNull(),
-    nodeId: text("node_id").notNull(),
-    // Add your output fields here
-    result: text("result").notNull(),
+    output: outputSchema,
   },
-  (t) => ({ pk: primaryKey({ columns: [t.runId, t.nodeId] }) })
+  { dbPath: ".smithers/workflow.db" }
 );
 
-export const schema = {
-  input: inputTable,
-  output: outputTable,
+const sqlite = (db as any).$client as {
+  exec: (sql: string) => unknown;
+  run: (sql: string, params?: unknown[]) => unknown;
 };
 
-export const db = drizzle(".smithers/workflow.db", { schema });
-
-// Create tables
-(db as any).$client.exec(\`
-  CREATE TABLE IF NOT EXISTS input (
-    run_id TEXT PRIMARY KEY
-  );
-  CREATE TABLE IF NOT EXISTS output (
-    run_id TEXT NOT NULL, node_id TEXT NOT NULL,
-    result TEXT NOT NULL,
-    PRIMARY KEY (run_id, node_id)
-  );
-  CREATE TABLE IF NOT EXISTS state (
-    key TEXT PRIMARY KEY, value TEXT NOT NULL,
-    updated_at TEXT DEFAULT (datetime('now'))
-  );
-\`);
-
-// ---------------------------------------------------------------------------
-// Supervisor state helpers
-// ---------------------------------------------------------------------------
+sqlite.exec([
+  "CREATE TABLE IF NOT EXISTS state (",
+  "  key TEXT PRIMARY KEY,",
+  "  value TEXT NOT NULL,",
+  "  updated_at TEXT DEFAULT (datetime('now'))",
+  ")",
+].join("\\n"));
 
 function updateState(key: string, value: string) {
   try {
-    (db as any).$client.run(
+    sqlite.run(
       "INSERT OR REPLACE INTO state (key, value, updated_at) VALUES (?, ?, datetime('now'))",
       [key, value]
     );
   } catch (err) {
-    console.error(\`Failed to update state "\${key}":\`, err);
+    console.error("Failed to update state " + key + ":", err);
   }
 }
 
@@ -264,54 +240,33 @@ updateState("supervisor.status", "running");
 updateState("supervisor.summary", "Workflow initialized");
 updateState("supervisor.heartbeat", new Date().toISOString());
 
-setInterval(() => {
-  try {
-    updateState("supervisor.heartbeat", new Date().toISOString());
-  } catch (err) {
-    console.error("Heartbeat failed:", err);
-  }
+const heartbeatTimer = setInterval(() => {
+  updateState("supervisor.heartbeat", new Date().toISOString());
 }, 30000);
-
-// ---------------------------------------------------------------------------
-// Agents
-// ---------------------------------------------------------------------------
-
-const cliEnv = { ANTHROPIC_API_KEY: "" };
+heartbeatTimer.unref?.();
 
 const myAgent = new ClaudeCodeAgent({
   model: "sonnet",
-  env: cliEnv,
+  env: { ANTHROPIC_API_KEY: "" },
   systemPrompt: "You are a helpful assistant. Respond with JSON: { \\"result\\": \\"string\\" }",
 });
 
-// ---------------------------------------------------------------------------
-// Workflow
-// ---------------------------------------------------------------------------
-
-export default smithers(db, (ctx) => {
+export default smithers(() => {
   updateState("supervisor.status", "running");
   updateState("supervisor.summary", "Processing...");
 
   return (
     <Workflow name="my-workflow">
-      <Task id="my-task" output={schema.output} agent={myAgent}>
+      <Task id="my-task" output={outputs.output} agent={myAgent}>
         Your prompt here
       </Task>
     </Workflow>
   );
 });
 
-// ---------------------------------------------------------------------------
-// Shutdown handlers
-// ---------------------------------------------------------------------------
-
 process.on("beforeExit", () => {
-  try {
-    updateState("supervisor.status", "done");
-    updateState("supervisor.summary", "Workflow complete");
-  } catch (err) {
-    console.error("Failed to update final state:", err);
-  }
+  updateState("supervisor.status", "done");
+  updateState("supervisor.summary", "Workflow complete");
 });
 `;
 }
@@ -465,13 +420,12 @@ Key paths:
 }
 
 async function checkSmithersDependency(): Promise<void> {
-  // Check if smithers-orchestrator is installed by reading package.json
   const packageJsonExists = await Bun.file('package.json').exists();
 
   if (!packageJsonExists) {
     console.log('\n⚠️  package.json not found');
-    console.log('\nTo install Smithers and AI SDK dependencies, run:');
-    console.log('  bun add smithers-orchestrator zod ai @ai-sdk/anthropic');
+    console.log('\nTo install Smithers dependencies, run:');
+    console.log('  bun add smithers-orchestrator zod');
     return;
   }
 
@@ -480,16 +434,13 @@ async function checkSmithersDependency(): Promise<void> {
     const hasSmithers =
       packageJson.dependencies?.['smithers-orchestrator'] ||
       packageJson.devDependencies?.['smithers-orchestrator'];
-    const hasAI =
-      packageJson.dependencies?.['ai'] || packageJson.devDependencies?.['ai'];
-    const hasAnthropic =
-      packageJson.dependencies?.['@ai-sdk/anthropic'] ||
-      packageJson.devDependencies?.['@ai-sdk/anthropic'];
+    const hasZod =
+      packageJson.dependencies?.['zod'] ||
+      packageJson.devDependencies?.['zod'];
 
     const missing: string[] = [];
     if (!hasSmithers) missing.push('smithers-orchestrator');
-    if (!hasAI) missing.push('ai');
-    if (!hasAnthropic) missing.push('@ai-sdk/anthropic');
+    if (!hasZod) missing.push('zod');
 
     if (missing.length === 0) {
       console.log('✓ All required dependencies found');
@@ -640,11 +591,8 @@ async function initWorktree(worktreeName: string, options: InitOptions): Promise
       results.created.push(workflowPath + ' (copied from main)');
     } else {
       // Create new workflow template
-      const template = `import { createSmithers, Task } from "smithers-orchestrator";
-import { ToolLoopAgent as Agent } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
+      const template = `import { createSmithers, ClaudeCodeAgent } from "smithers-orchestrator";
 import { z } from "zod";
-import Database from "bun:sqlite";
 
 // Worktree: ${worktree.branch}
 // This workflow is specific to the ${worktree.branch} worktree
@@ -654,30 +602,34 @@ const ExampleOutput = z.object({
   timestamp: z.string(),
 });
 
-const { Workflow, smithers, tables } = createSmithers(
+const { Workflow, Task, smithers, outputs, db } = createSmithers(
   {
     example: ExampleOutput,
   },
   { dbPath: "${dbPath}" }
 );
 
-const agent = new Agent({
-  model: anthropic("claude-sonnet-4-20250514"),
-  instructions: "You are a helpful assistant for the ${worktree.branch} branch.",
+const agent = new ClaudeCodeAgent({
+  model: "sonnet",
+  env: { ANTHROPIC_API_KEY: "" },
+  systemPrompt: "You are a helpful assistant for the ${worktree.branch} branch. Respond with JSON.",
 });
 
-const db = new Database("${dbPath}");
+const sqlite = (db as any).$client as {
+  exec: (sql: string) => unknown;
+  run: (sql: string, params?: unknown[]) => unknown;
+};
 
-db.run(\`
-  CREATE TABLE IF NOT EXISTS state (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL,
-    updated_at TEXT DEFAULT (datetime('now'))
-  )
-\`);
+sqlite.exec([
+  "CREATE TABLE IF NOT EXISTS state (",
+  "  key TEXT PRIMARY KEY,",
+  "  value TEXT NOT NULL,",
+  "  updated_at TEXT DEFAULT (datetime('now'))",
+  ")",
+].join("\\n"));
 
 function updateState(key: string, value: string) {
-  db.run(
+  sqlite.run(
     "INSERT OR REPLACE INTO state (key, value, updated_at) VALUES (?, ?, datetime('now'))",
     [key, value]
   );
@@ -687,15 +639,14 @@ updateState("supervisor.status", "running");
 updateState("supervisor.summary", "Workflow initialized for ${worktree.branch}");
 updateState("supervisor.heartbeat", new Date().toISOString());
 
-if (typeof globalThis !== "undefined") {
-  setInterval(() => {
-    try {
-      updateState("supervisor.heartbeat", new Date().toISOString());
-    } catch (err) {
-      console.error("Failed to write heartbeat:", err);
-    }
-  }, 30000);
-}
+const heartbeatTimer = setInterval(() => {
+  try {
+    updateState("supervisor.heartbeat", new Date().toISOString());
+  } catch (err) {
+    console.error("Failed to write heartbeat:", err);
+  }
+}, 30000);
+heartbeatTimer.unref?.();
 
 export default smithers((ctx) => {
   updateState("supervisor.status", "running");
@@ -703,7 +654,7 @@ export default smithers((ctx) => {
 
   return (
     <Workflow name="${worktree.branch}-workflow">
-      <Task id="example-task" output="example" agent={agent}>
+      <Task id="example-task" output={outputs.example} agent={agent}>
         This is a placeholder task for the ${worktree.branch} worktree.
         Replace with your actual workflow logic.
       </Task>

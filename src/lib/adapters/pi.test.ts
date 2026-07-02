@@ -9,7 +9,7 @@ describe('PiAdapter', () => {
   });
 
   test('should save prompt to file for debugging', async () => {
-    const adapter = new PiAdapter();
+    const adapter = new PiAdapter('__takopi_missing_pi__', 1_000);
     const context: AutoHealContext = {
       exitCode: 1,
       signalCode: null,
@@ -28,20 +28,20 @@ describe('PiAdapter', () => {
 
     const testPrompt = 'Test auto-heal prompt for Pi';
 
-    // This will fail because pi isn't installed, but should save the prompt
+    // This uses a missing command on purpose, but should still save the prompt.
     const result = await adapter.invoke(testPrompt, '.smithers/workflow.tsx', context);
 
     // Verify prompt was saved
     const savedPrompt = await Bun.file('.takopi-smithers/autoheal-prompt-pi.txt').text();
     expect(savedPrompt).toBe(testPrompt);
 
-    // Should fail (pi command not found in test env)
+    // Should fail because the configured command does not exist.
     expect(result.success).toBe(false);
     expect(result.error).toBeDefined();
   });
 
   test('should handle missing pi command gracefully', async () => {
-    const adapter = new PiAdapter();
+    const adapter = new PiAdapter('__takopi_missing_pi__', 1_000);
     const context: AutoHealContext = {
       exitCode: 1,
       signalCode: null,

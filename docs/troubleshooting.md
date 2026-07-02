@@ -140,11 +140,15 @@ sqlite3 .smithers/workflow.db "SELECT * FROM state WHERE key = 'supervisor.heart
 Add heartbeat to workflow (should be in template from `init`):
 
 ```tsx
-import { db } from 'smithers';
+const sqlite = (db as any).$client;
 
-setInterval(() => {
-  db.state.set('supervisor.heartbeat', new Date().toISOString());
+const heartbeatTimer = setInterval(() => {
+  sqlite.run(
+    "INSERT OR REPLACE INTO state (key, value, updated_at) VALUES (?, ?, datetime('now'))",
+    ["supervisor.heartbeat", new Date().toISOString()]
+  );
 }, 30000); // Every 30 seconds
+heartbeatTimer.unref?.();
 ```
 
 ### "Auto-heal keeps failing"

@@ -10,6 +10,11 @@ import { log } from '../logger';
 export class PiAdapter implements AutoHealAdapter {
   name = 'pi';
 
+  constructor(
+    private readonly command: string = process.env.TAKOPI_SMITHERS_PI_COMMAND ?? 'pi',
+    private readonly timeoutMs: number = 60_000
+  ) {}
+
   async invoke(
     prompt: string,
     workflowScript: string,
@@ -25,7 +30,7 @@ export class PiAdapter implements AutoHealAdapter {
       // Invoke Pi in non-interactive print mode
       // Pi's -p flag enables print mode for scripting
       const proc = Bun.spawn(
-        ['pi', '-p', prompt],
+        [this.command, '-p', prompt],
         {
           cwd: process.cwd(),
           stdout: 'pipe',
@@ -34,13 +39,29 @@ export class PiAdapter implements AutoHealAdapter {
         }
       );
 
+      let timedOut = false;
+      const timeout = setTimeout(() => {
+        timedOut = true;
+        proc.kill();
+      }, this.timeoutMs);
+
       const exitCode = await proc.exited;
+      clearTimeout(timeout);
+
       const stdout = await new Response(proc.stdout).text();
       const stderr = await new Response(proc.stderr).text();
 
       await log(`Pi exited with code ${exitCode}`);
       await log(`Pi stdout: ${stdout.slice(0, 500)}`);
       if (stderr) await log(`Pi stderr: ${stderr.slice(0, 500)}`, 'warn');
+
+      if (timedOut) {
+        return {
+          success: false,
+          error: `Pi timed out after ${this.timeoutMs}ms`,
+          agentOutput: stdout + '\n' + stderr,
+        };
+      }
 
       if (exitCode !== 0) {
         return {
