@@ -6,7 +6,7 @@
     "module": "preserve",
     "moduleDetection": "force",
     "jsx": "react-jsx",
-    "jsxImportSource": "smithers-orchestrator",
+    "jsxImportSource": "smthrs",
     "allowJs": true,
 
     // Bundler mode

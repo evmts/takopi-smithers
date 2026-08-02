@@ -23,7 +23,7 @@ export async function createTestRepo(options?: { installDeps?: boolean }): Promi
     name: 'test-repo',
     version: '1.0.0',
     dependencies: {
-      'smithers-orchestrator': '*',
+      'smthrs': '*',
       'zod': '*',
     },
   };

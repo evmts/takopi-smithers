@@ -366,7 +366,7 @@ See `docs/workflow-authoring.md` for a complete guide to writing production-read
 Quick example:
 
 ```tsx
-import { createSmithers, ClaudeCodeAgent } from "smithers-orchestrator";
+import { createSmithers, ClaudeCodeAgent } from "smthrs";
 import { z } from "zod";
 
 // 1. Define schemas and let Smithers own workflow storage

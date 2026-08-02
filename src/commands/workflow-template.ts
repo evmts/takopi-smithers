@@ -2,7 +2,7 @@
 // Smithers owns workflow storage through createSmithers; Takopi only adds a
 // small supervisor state table for status, heartbeat, and operator summaries.
 
-export const WORKFLOW_TEMPLATE = `import { createSmithers, ClaudeCodeAgent } from "smithers-orchestrator";
+export const WORKFLOW_TEMPLATE = `import { createSmithers, ClaudeCodeAgent } from "smthrs";
 import { z } from "zod";
 
 const inputSchema = z.object({

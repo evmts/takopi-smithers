@@ -49,7 +49,7 @@ All files in package.json "files" array exist:
 - `@babel/runtime`: ^7.28.6
 - `@iarna/toml`: ^2.2.5
 - `react-dom`: ^19.2.4 (needed for Smithers)
-- `smithers-orchestrator`: 0.26.1
+- `smthrs`: 0.26.1
 - `zod`: ^4.3.6
 
 **Peer Dependencies:**

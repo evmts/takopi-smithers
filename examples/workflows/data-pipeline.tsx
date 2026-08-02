@@ -1,7 +1,7 @@
 // Data Pipeline Workflow
 // Demonstrates: ETL stages with progress surfaced through Takopi supervisor state.
 
-import { createSmithers, ClaudeCodeAgent } from "smithers-orchestrator";
+import { createSmithers, ClaudeCodeAgent } from "smthrs";
 import { z } from "zod";
 
 const inputSchema = z.object({

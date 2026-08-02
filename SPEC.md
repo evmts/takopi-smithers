@@ -126,7 +126,7 @@ Binary: `takopi-smithers`
 
 - `takopi-smithers init`
 
-  - ensure bun deps (adds `smithers-orchestrator`)
+  - ensure bun deps (adds `smthrs`)
   - scaffold files/templates
   - validate Takopi presence (or print instructions)
 
@@ -296,7 +296,7 @@ Codespaces is a good fit because:
   - create `TAKOPI_SMITHERS.md`
   - create `CLAUDE.md` importing the above (Claude Code supports memory files + imports) ([Claude API Docs][3])
   - create `AGENTS.md` referencing the above (Codex supports AGENTS.md) ([OpenAI][4])
-  - add `smithers-orchestrator` dependency (or prompt user)
+  - add `smthrs` dependency (or prompt user)
 
 - Idempotent behavior (re-run doesn’t trash edits; writes `.bak` or only fills missing)
 

@@ -124,15 +124,15 @@ async function checkSmithersDependencies(): Promise<CheckResult> {
       name: 'Smithers Dependencies',
       status: 'warn',
       message: 'package.json not found',
-      guidance: 'Run "bun add smithers-orchestrator zod" to install dependencies',
+      guidance: 'Run "bun add smthrs zod" to install dependencies',
     };
   }
 
   try {
     const packageJson = await Bun.file('package.json').json();
     const hasOrchestrator =
-      packageJson.dependencies?.['smithers-orchestrator'] ||
-      packageJson.devDependencies?.['smithers-orchestrator'];
+      packageJson.dependencies?.['smthrs'] ||
+      packageJson.devDependencies?.['smthrs'];
     const hasZod =
       packageJson.dependencies?.['zod'] ||
       packageJson.devDependencies?.['zod'];
@@ -141,12 +141,12 @@ async function checkSmithersDependencies(): Promise<CheckResult> {
       return {
         name: 'Smithers Dependencies',
         status: 'pass',
-        message: 'smithers-orchestrator and zod found in package.json',
+        message: 'smthrs and zod found in package.json',
       };
     }
 
     const missing = [];
-    if (!hasOrchestrator) missing.push('smithers-orchestrator');
+    if (!hasOrchestrator) missing.push('smthrs');
     if (!hasZod) missing.push('zod');
 
     return {

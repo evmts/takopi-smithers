@@ -67,7 +67,7 @@ export async function createTestHarness(options: TestHarnessOptions = {}): Promi
       version: '1.0.0',
       type: 'module',
       dependencies: {
-        'smithers-orchestrator': '*',
+        'smthrs': '*',
         'zod': '*',
       },
     };
@@ -400,7 +400,7 @@ export class MockAutoHealAdapter {
 
   private generateFixedWorkflow(context: any): string {
     // Generate a minimal working workflow
-    return `import { createSmithers, ClaudeCodeAgent } from "smithers-orchestrator";
+    return `import { createSmithers, ClaudeCodeAgent } from "smthrs";
 import { z } from "zod";
 
 const outputSchema = z.object({

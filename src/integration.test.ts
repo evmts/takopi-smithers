@@ -75,7 +75,7 @@ max_attempts = 3
       exitCode: 1,
       signalCode: null,
       workflowScript: '.smithers/workflow.tsx',
-      workflowContent: 'import { createSmithers } from "smithers-orchestrator";\n\nconst { smithers } = createSmithers({});\nexport default smithers(() => <Workflow>...</Workflow>);',
+      workflowContent: 'import { createSmithers } from "smthrs";\n\nconst { smithers } = createSmithers({});\nexport default smithers(() => <Workflow>...</Workflow>);',
       dbPath: '.smithers/workflow.db',
       dbState: {
         status: 'error',
@@ -122,7 +122,7 @@ max_attempts = 3
     try {
       // Write initial workflow file
       await Bun.write(workflowPath, `
-        import { createSmithers } from "smithers-orchestrator";
+        import { createSmithers } from "smthrs";
         // Initial version
         const { Workflow, Task, smithers } = createSmithers({});
         export default smithers(() => <Workflow name="test"><Task id="noop">noop</Task></Workflow>);
@@ -170,7 +170,7 @@ max_attempts = 3
 
       // Modify workflow file
       await Bun.write(workflowPath, `
-        import { createSmithers } from "smithers-orchestrator";
+        import { createSmithers } from "smthrs";
         // Modified version - this comment was added
         const { Workflow, Task, smithers } = createSmithers({});
         export default smithers(() => <Workflow name="test"><Task id="noop">noop</Task></Workflow>);
