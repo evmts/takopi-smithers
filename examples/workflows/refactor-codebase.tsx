@@ -1,7 +1,7 @@
 // Refactoring Workflow
 // Demonstrates: iterative module refactoring with rollback and validation gates.
 
-import { createSmithers, ClaudeCodeAgent } from "smithers-orchestrator";
+import { createSmithers, ClaudeCodeAgent } from "smthrs";
 import { z } from "zod";
 
 const inputSchema = z.object({

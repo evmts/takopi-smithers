@@ -119,8 +119,8 @@ test("workflow.tsx uses multi-phase smithers workflow pattern", async () => {
 
   const workflowContent = await Bun.file(".smithers/workflow.tsx").text();
 
-  // Check for smithers-orchestrator imports
-  expect(workflowContent).toContain('from "smithers-orchestrator"');
+  // Check for smthrs imports
+  expect(workflowContent).toContain('from "smthrs"');
   expect(workflowContent).toContain("ClaudeCodeAgent");
   expect(workflowContent).toContain("createSmithers");
   expect(workflowContent).toContain('from "zod"');

@@ -14,7 +14,7 @@ Every workflow needs these pieces:
 6. **Shutdown handlers** that mark the workflow done when the process exits
 
 ```tsx
-import { createSmithers, ClaudeCodeAgent } from "smithers-orchestrator";
+import { createSmithers, ClaudeCodeAgent } from "smthrs";
 import { z } from "zod";
 
 const inputSchema = z.object({
@@ -170,7 +170,7 @@ sqlite3 .smithers/my-workflow.db 'select key, value from state'
 ## Common Pitfalls
 
 - Do not call `smithers(db, ...)`; current Smithers workflows use `createSmithers(...).smithers((ctx) => ...)`.
-- Do not import from the old `smithers` package. Use `smithers-orchestrator`.
+- Do not import from the old `smithers` package. Use `smthrs`.
 - Do not hand-write Smithers output tables. Define Zod schemas and pass `outputs.<name>` to tasks.
 - Keep task IDs stable across edits so persisted runs can resume predictably.
 - Update `supervisor.summary` whenever phase or progress changes.

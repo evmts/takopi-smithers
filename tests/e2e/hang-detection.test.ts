@@ -6,7 +6,7 @@ import { createTestRepo, type TestRepo } from './setup';
 import type { Subprocess } from 'bun';
 
 // Skip these tests for now - they use old workflow format
-// TODO: Update these tests to work with new smithers-orchestrator API
+// TODO: Update these tests to work with new smthrs API
 
 let testRepo: TestRepo;
 let supervisorProc: Subprocess | null = null;

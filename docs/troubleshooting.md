@@ -32,13 +32,13 @@ export PATH="$HOME/.local/bin:$PATH"
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 ```
 
-### "smithers-orchestrator: command not found"
+### "smthrs: command not found"
 
 **Cause:** Smithers dependencies not installed in the repo.
 
 **Solution:**
 ```bash
-bun add smithers smithers-orchestrator
+bun add smithers smthrs
 ```
 
 ## Configuration Issues
@@ -358,7 +358,7 @@ kill -9 <PID>
 
 # Clean up child processes
 pkill -f takopi
-pkill -f smithers-orchestrator
+pkill -f smthrs
 ```
 
 ### "Multiple supervisors running"
@@ -398,7 +398,7 @@ bunx takopi-smithers start
 **Diagnosis:**
 
 ```bash
-top -p $(pgrep -f smithers-orchestrator)
+top -p $(pgrep -f smthrs)
 ```
 
 **Common causes:**

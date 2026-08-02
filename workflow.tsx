@@ -1,4 +1,4 @@
-import { createSmithers, ClaudeCodeAgent } from "smithers-orchestrator";
+import { createSmithers, ClaudeCodeAgent } from "smthrs";
 import { z } from "zod";
 
 const inputSchema = z.object({

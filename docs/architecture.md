@@ -78,7 +78,7 @@ The supervisor and workflow communicate via SQLite state keys:
 In the workflow (`.smithers/workflow.tsx`):
 
 ```tsx
-import { createSmithers } from "smithers-orchestrator";
+import { createSmithers } from "smthrs";
 
 const { db } = createSmithers(
   { /* schemas */ },

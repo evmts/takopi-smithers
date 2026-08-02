@@ -51,7 +51,7 @@ export async function init(options: InitOptions = {}): Promise<void> {
   // Create AGENTS.md
   await createAgentsMd(options.force, results);
 
-  // Check for smithers-orchestrator dependency
+  // Check for smthrs dependency
   await checkSmithersDependency();
 
   // Print summary
@@ -198,7 +198,7 @@ async function getExampleWorkflow(filename: string): Promise<string> {
 }
 
 function getMinimalTemplate(): string {
-  return `import { createSmithers, ClaudeCodeAgent } from "smithers-orchestrator";
+  return `import { createSmithers, ClaudeCodeAgent } from "smthrs";
 import { z } from "zod";
 
 const outputSchema = z.object({
@@ -425,21 +425,21 @@ async function checkSmithersDependency(): Promise<void> {
   if (!packageJsonExists) {
     console.log('\n⚠️  package.json not found');
     console.log('\nTo install Smithers dependencies, run:');
-    console.log('  bun add smithers-orchestrator zod');
+    console.log('  bun add smthrs zod');
     return;
   }
 
   try {
     const packageJson = await Bun.file('package.json').json();
     const hasSmithers =
-      packageJson.dependencies?.['smithers-orchestrator'] ||
-      packageJson.devDependencies?.['smithers-orchestrator'];
+      packageJson.dependencies?.['smthrs'] ||
+      packageJson.devDependencies?.['smthrs'];
     const hasZod =
       packageJson.dependencies?.['zod'] ||
       packageJson.devDependencies?.['zod'];
 
     const missing: string[] = [];
-    if (!hasSmithers) missing.push('smithers-orchestrator');
+    if (!hasSmithers) missing.push('smthrs');
     if (!hasZod) missing.push('zod');
 
     if (missing.length === 0) {
@@ -591,7 +591,7 @@ async function initWorktree(worktreeName: string, options: InitOptions): Promise
       results.created.push(workflowPath + ' (copied from main)');
     } else {
       // Create new workflow template
-      const template = `import { createSmithers, ClaudeCodeAgent } from "smithers-orchestrator";
+      const template = `import { createSmithers, ClaudeCodeAgent } from "smthrs";
 import { z } from "zod";
 
 // Worktree: ${worktree.branch}
